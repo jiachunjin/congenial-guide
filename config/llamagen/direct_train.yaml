@@ -1,6 +1,8 @@
 model:
   internvl_path: /home/jiachun/ckpt/OpenGVLab/InternVL3_5-1B
   quantizer:
+    output_dim: 14
+    llm_hidden_size: 1024
     ckpt_path: /home/jiachun/ckpt/llamagen/vq_ds16_t2i.pt
 
 train:
@@ -28,5 +30,5 @@ data:
   num_img_token: 256
   max_seq_length: 512
   buffer_size: 50
-  batch_size: 25
+  batch_size: 2
   num_workers: 8

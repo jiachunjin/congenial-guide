@@ -1,0 +1,34 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-2B
+  quantizer:
+    output_dim: 14
+    llm_hidden_size: 2048
+    ckpt_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/LlamaGen/vq_ds16_t2i.pt
+
+train:
+  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
+  resume_path: null
+  skip_keys: []
+  global_step: 0
+
+  exp_name: &exp_name llamagen
+  proj_name: *exp_name
+  output_dir: 1125_llamagentok_2B
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: null
+
+  lr: 1e-4
+  num_iter: 1000000
+  save_every: 5000
+
+data:
+  wds_path: [/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption]
+  img_size: 256
+  cfg_drop_rate: 0.0
+  num_img_token: 256
+  max_seq_length: 512
+  buffer_size: 50
+  batch_size: 2
+  num_workers: 8

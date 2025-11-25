@@ -7,6 +7,13 @@ import hashlib
 from einops import rearrange
 from util.trainer import Trainer
 
+def modify_internvl(internvl, config):
+    vocab_size = 2 ** config.output_dim
+    internvl.visual_embeddings = torch.nn.Embedding(vocab_size, config.llm_hidden_size)
+    internvl.visual_head = torch.nn.Linear(config.llm_hidden_size, vocab_size, bias=False)
+
+    return internvl
+
 class MyTrainer(Trainer):
     def __init__(self, config):
         super().__init__(config)
@@ -22,6 +29,7 @@ class MyTrainer(Trainer):
         tok = tok.eval()
         
         internvl = InternVLChatModel.from_pretrained(self.config.model.internvl_path)
+        internvl = modify_internvl(internvl, self.config.model.quantizer)
 
         tokenizer = AutoTokenizer.from_pretrained("/home/jiachun/ckpt/OpenGVLab/InternVL3_5-1B", trust_remote_code=True, use_fast=False)
 
@@ -49,8 +57,54 @@ class MyTrainer(Trainer):
                 with torch.no_grad():
                     _, _, info = self.tok.encode(x_gen)
                     code = rearrange(info[2], "(B L) -> B L", B=B)
-                    print("code shape:", code.shape)
                 
+                text_embedding = self.model.language_model.get_input_embeddings()(input_ids)
+                visual_embedding = self.model.visual_embeddings(code)
+                joint_embedding = torch.cat([text_embedding, visual_embedding], dim=1)
+                attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
+
+                visual_hidden_states = self.model.language_model(
+                    inputs_embeds        = joint_embedding,
+                    attention_mask       = attention_mask,
+                    output_hidden_states = True,
+                ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :]
+
+                # self.accelerator.print(visual_hidden_states.shape)
+
+                visual_token_logits = self.model.visual_head(visual_hidden_states)
+
+                loss = torch.nn.functional.cross_entropy(visual_token_logits.contiguous().view(-1, visual_token_logits.size(-1)), code.contiguous().view(-1))
+
+                self.accelerator.backward(loss)
+                    
+                if self.accelerator.sync_gradients:
+                    self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+                    self.global_step += 1
+                    self.progress_bar.update(1)
+                    logs = dict(
+                        loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                    )
+                    self.accelerator.log(logs, step=self.global_step)
+                    self.progress_bar.set_postfix(**logs)
+
+                    if self.global_step > 0 and self.global_step % self.config.train.save_every == 0 and self.accelerator.is_main_process:
+                        self.model.eval()
+                        state_dict = self.accelerator.unwrap_model(self.model).state_dict()
+                        save_path = os.path.join(self.output_dir, f"internvl-{self.config.train.exp_name}-{self.global_step}")
+                        torch.save(state_dict, save_path)
+                        print(f"internvl saved to {save_path}")
+
+                    self.accelerator.wait_for_everyone()
+
+        self.epoch += 1
+        self.accelerator.print(f"epoch {self.epoch}: finished")
+        self.accelerator.log({"epoch": self.epoch}, step=self.global_step)
+
+        self.accelerator.end_training()
+
 
     def dataset_check(self):
         # self.dataloader = self.accelerator.prepare(self.dataloader)
