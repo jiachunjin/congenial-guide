@@ -74,8 +74,8 @@ class MyTrainer(Trainer):
                     B, N, C = input_embeds_teacher.shape
                     input_embeds_teacher = input_embeds_teacher.reshape(B * N, C)
 
-                    input_ids_und = input_ids_und.reshape(B * N)
-                    selected = (input_ids_und == self.img_context_token_id)
+                    input_ids = input_ids.reshape(B * N)
+                    selected = (input_ids == self.img_context_token_id)
                     assert selected.sum() != 0
                     input_embeds_student = input_embeds_teacher.clone()
                     input_embeds_student[selected] = x_vq.reshape(-1, C).to(input_embeds_student.device)
