@@ -1,0 +1,32 @@
+model:
+  internvl_path: /data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-1B
+  quantizer:
+    type: MLP # [MLP, ViT]
+    input_feature_dim: 4096
+    output_dim: 14
+    llm_hidden_size: 1024
+
+train:
+  root: /data/phd/jinjiachun/experiment
+  resume_path: null
+  global_step: 0
+
+  exp_name: &exp_name vq_llava_distill
+  proj_name: *exp_name
+  output_dir: 1126_lfq_mlp_14_intern1B
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: swanlab
+
+  lr: 1e-4
+  num_iter: 100000
+  save_every: 5000
+
+data:
+  img_path: /data/phd/jinjiachun/dataset/llava_mix665k
+  ann_path: /data/phd/jinjiachun/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
+  batch_size: 20
+  num_workers: 8
+  max_seq_length: 768
+  num_image_token: 256

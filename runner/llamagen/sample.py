@@ -83,7 +83,7 @@ def sample_384():
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl(internvl, config.model.quantizer)
-    ckpt_path = os.path.join(exp_dir, "model-llamagen-2000")
+    ckpt_path = os.path.join(exp_dir, "model-llamagen-5000")
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     internvl.load_state_dict(ckpt, strict=True)
 
@@ -97,9 +97,9 @@ def sample_384():
     internvl.gen_vision_model = tok
 
     IMG_START_TOKEN = "<img>"
-    prompt_text = "A cute dog playing with a cat."
+    prompt_text = "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair."
 
-    prompt = f"Generate an image: {prompt_text}" + IMG_START_TOKEN
+    prompt = f"{prompt_text}" + IMG_START_TOKEN
 
     generate(internvl, tokenizer, prompt, device=device)
 
