@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import torch
 import numpy as np
 import PIL
@@ -75,7 +77,7 @@ def sample_384():
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
 
     janus = MultiModalityCausalLM.from_pretrained(config.model.pretrained_path)
-    ckpt_path = os.path.join(exp_dir, "model-llamagen-1000")
+    ckpt_path = os.path.join(exp_dir, "model-llamagen-2000")
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     janus.load_state_dict(ckpt, strict=True)
     
@@ -83,7 +85,7 @@ def sample_384():
     vl_chat_processor = VLChatProcessor.from_pretrained(config.model.pretrained_path)
     tokenizer = vl_chat_processor.tokenizer
     
-    prompt_text = "A cute dog playing with a ball."
+    prompt_text = "A cute dog playing with a cat."
     prompt = f"Generate an image: {prompt_text}" + vl_chat_processor.image_start_tag
     print(prompt)
 

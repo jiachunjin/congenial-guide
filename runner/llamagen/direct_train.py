@@ -69,8 +69,6 @@ class MyTrainer(Trainer):
                     output_hidden_states = True,
                 ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :]
 
-                # self.accelerator.print(visual_hidden_states.shape)
-
                 visual_token_logits = self.model.visual_head(visual_hidden_states)
 
                 loss = torch.nn.functional.cross_entropy(visual_token_logits.contiguous().view(-1, visual_token_logits.size(-1)), code.contiguous().view(-1))
