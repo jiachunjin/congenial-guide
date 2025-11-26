@@ -10,6 +10,7 @@ from util.trainer import Trainer
 def modify_internvl(internvl, config):
     vocab_size = 2 ** config.output_dim
     internvl.visual_embeddings = torch.nn.Embedding(vocab_size, config.llm_hidden_size)
+    internvl.visual_aligner = torch.nn.Linear(config.llm_hidden_size, config.llm_hidden_size)
     internvl.visual_head = torch.nn.Linear(config.llm_hidden_size, vocab_size, bias=False)
 
     return internvl
@@ -31,7 +32,7 @@ class MyTrainer(Trainer):
         internvl = InternVLChatModel.from_pretrained(self.config.model.internvl_path)
         internvl = modify_internvl(internvl, self.config.model.quantizer)
 
-        tokenizer = AutoTokenizer.from_pretrained("/home/jiachun/ckpt/OpenGVLab/InternVL3_5-1B", trust_remote_code=True, use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
         self.model = internvl
         self.tok = tok.to(self.device, self.dtype).eval()
@@ -43,63 +44,69 @@ class MyTrainer(Trainer):
     
     def train(self):
         self.model, self.optimizer = self.accelerator.prepare(self.model, self.optimizer)
-        for batch in self.dataloader:
-            with self.accelerator.accumulate(self.model):
-                self.model.train()
+        training_done = False
+        while not training_done:
+            for batch in self.dataloader:
+                with self.accelerator.accumulate(self.model):
+                    self.model.train()
 
-                pixel_values = batch["pixel_values"].to(self.device, self.dtype)
-                input_ids = batch["input_ids"].to(self.device)
-                attention_mask = batch["attention_mask"].to(self.device)
+                    pixel_values = batch["pixel_values"].to(self.device, self.dtype)
+                    input_ids = batch["input_ids"].to(self.device)
+                    attention_mask = batch["attention_mask"].to(self.device)
 
-                x_gen = pixel_values * 2 - 1
-                B = x_gen.shape[0]
+                    x_gen = pixel_values * 2 - 1
+                    B = x_gen.shape[0]
 
-                with torch.no_grad():
-                    _, _, info = self.tok.encode(x_gen)
-                    code = rearrange(info[2], "(B L) -> B L", B=B)
-                
-                text_embedding = self.model.language_model.get_input_embeddings()(input_ids)
-                visual_embedding = self.model.visual_embeddings(code)
-                joint_embedding = torch.cat([text_embedding, visual_embedding], dim=1)
-                attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
-
-                visual_hidden_states = self.model.language_model(
-                    inputs_embeds        = joint_embedding,
-                    attention_mask       = attention_mask,
-                    output_hidden_states = True,
-                ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :]
-
-                visual_token_logits = self.model.visual_head(visual_hidden_states)
-
-                loss = torch.nn.functional.cross_entropy(visual_token_logits.contiguous().view(-1, visual_token_logits.size(-1)), code.contiguous().view(-1))
-
-                self.accelerator.backward(loss)
+                    with torch.no_grad():
+                        _, _, info = self.tok.encode(x_gen)
+                        code = rearrange(info[2], "(B L) -> B L", B=B)
                     
-                if self.accelerator.sync_gradients:
-                    self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
+                    text_embedding = self.model.language_model.get_input_embeddings()(input_ids)
+                    visual_embedding = self.model.visual_aligner(self.model.visual_embeddings(code))
+                    joint_embedding = torch.cat([text_embedding, visual_embedding], dim=1)
+                    attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
 
-                    self.global_step += 1
-                    self.progress_bar.update(1)
-                    logs = dict(
-                        loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
-                    )
-                    self.accelerator.log(logs, step=self.global_step)
-                    self.progress_bar.set_postfix(**logs)
+                    visual_hidden_states = self.model.language_model(
+                        inputs_embeds        = joint_embedding,
+                        attention_mask       = attention_mask,
+                        output_hidden_states = True,
+                    ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :]
 
-                    if self.global_step > 0 and self.global_step % self.config.train.save_every == 0 and self.accelerator.is_main_process:
-                        self.model.eval()
-                        state_dict = self.accelerator.unwrap_model(self.model).state_dict()
-                        save_path = os.path.join(self.output_dir, f"internvl-{self.config.train.exp_name}-{self.global_step}")
-                        torch.save(state_dict, save_path)
-                        print(f"internvl saved to {save_path}")
+                    visual_token_logits = self.model.visual_head(visual_hidden_states)
 
-                    self.accelerator.wait_for_everyone()
+                    loss = torch.nn.functional.cross_entropy(visual_token_logits.contiguous().view(-1, visual_token_logits.size(-1)), code.contiguous().view(-1))
 
-        self.epoch += 1
-        self.accelerator.print(f"epoch {self.epoch}: finished")
-        self.accelerator.log({"epoch": self.epoch}, step=self.global_step)
+                    self.accelerator.backward(loss)
+                        
+                    if self.accelerator.sync_gradients:
+                        self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+
+                        self.global_step += 1
+                        self.progress_bar.update(1)
+                        logs = dict(
+                            loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                        )
+                        self.accelerator.log(logs, step=self.global_step)
+                        self.progress_bar.set_postfix(**logs)
+
+                        if self.global_step > 0 and self.global_step % self.config.train.save_every == 0 and self.accelerator.is_main_process:
+                            self.model.eval()
+                            state_dict = self.accelerator.unwrap_model(self.model).state_dict()
+                            save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
+                            torch.save(state_dict, save_path)
+                            print(f"model saved to {save_path}")
+
+                        self.accelerator.wait_for_everyone()
+
+                        if self.global_step >= self.config.train.num_iter:
+                            training_done = True
+                            break
+
+            self.epoch += 1
+            self.accelerator.print(f"epoch {self.epoch}: finished")
+            self.accelerator.log({"epoch": self.epoch}, step=self.global_step)
 
         self.accelerator.end_training()
 
