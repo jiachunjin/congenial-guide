@@ -3,9 +3,9 @@ import torch.nn as nn
 
 
 def get_lfq_quantizer(config):
-    if config.quantizer.type == "MLP":
-        return LFQ_MLP(config.quantizer)
-    elif config.quantizer.type == "ViT":
+    if config.type == "MLP":
+        return LFQ_MLP(config)
+    elif config.type == "ViT":
         raise NotImplementedError
     else:
         raise NotImplementedError
