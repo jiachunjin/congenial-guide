@@ -91,7 +91,7 @@ def test_mme():
 
         # construct visual features
         vit_feature = internvl.get_vit_feature(pixel_values)
-        visual_features, code = internvl.lfq(vit_feature)
+        visual_features, code = internvl.clip_quantizer(vit_feature)
         generation_config["visual_features"] = visual_features
 
         response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
