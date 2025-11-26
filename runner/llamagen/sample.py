@@ -36,7 +36,7 @@ def generate(
         outputs = internvl.language_model.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=outputs.past_key_values if i != 0 else None)
         hidden_states = outputs.last_hidden_state
         
-        logits = internvl.gen_head(hidden_states[:, -1, :])
+        logits = internvl.visual_head(hidden_states[:, -1, :])
         logit_cond = logits[0::2, :]
         logit_uncond = logits[1::2, :]
         
@@ -47,7 +47,8 @@ def generate(
         generated_tokens[:, i] = next_token.squeeze(dim=-1)
 
         next_token = torch.cat([next_token.unsqueeze(dim=1), next_token.unsqueeze(dim=1)], dim=1).view(-1)
-        img_embeds = internvl.prepare_gen_img_embeds(next_token)
+        # img_embeds = internvl.prepare_gen_img_embeds(next_token)
+        img_embeds = internvl.visual_aligner(internvl.visual_embeddings(next_token))
         inputs_embeds = img_embeds.unsqueeze(dim=1)
 
 

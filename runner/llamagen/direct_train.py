@@ -31,6 +31,11 @@ class MyTrainer(Trainer):
         
         internvl = InternVLChatModel.from_pretrained(self.config.model.internvl_path)
         internvl = modify_internvl(internvl, self.config.model.quantizer)
+        
+        if self.config.train.resume_path is not None:
+            ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=True)
+            internvl.load_state_dict(ckpt, strict=True)
+            self.accelerator.print(f"Resume training from: {self.config.train.resume_path}")
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 

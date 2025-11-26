@@ -43,10 +43,10 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
     def preprocess_text(text):
         IMG_START_TOKEN = "<img>"
 
-        if random.random() < config.cfg_drop_rate:
-            text = ""
+        # if random.random() < config.cfg_drop_rate:
+        #     text = ""
 
-        prompt = f"Generate an image: {text}" + IMG_START_TOKEN
+        prompt = text + IMG_START_TOKEN
 
         tokenizer_output = tokenizer(
             prompt,
@@ -57,6 +57,8 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
             max_length     = config.max_seq_length - config.num_img_token,
         )
         input_ids = tokenizer_output["input_ids"]
+        if random.random() < config.cfg_drop_rate:
+            input_ids[:, 1:-1] = tokenizer.pad_token_id
         attention_mask = tokenizer_output["attention_mask"]
 
         return input_ids, attention_mask

@@ -7,9 +7,9 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: null
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/llamagen/1126_intern1B_384/model-llamagen-2000
   skip_keys: []
-  global_step: 0
+  global_step: 2001
 
   exp_name: &exp_name llamagen
   proj_name: *exp_name
@@ -21,7 +21,7 @@ train:
 
   lr: 1e-4
   num_iter: 1000000
-  save_every: 2000
+  save_every: 5000
 
 data:
   wds_path: [/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption]
