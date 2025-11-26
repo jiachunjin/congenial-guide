@@ -45,7 +45,7 @@ class MyTrainer(Trainer):
     def _load_dataloader(self):
         from util.dataloader_llava import get_llava_mix665k_dataloader
 
-        self.dataloader = get_llava_mix665k_dataloader(self.config.data)
+        self.dataloader = get_llava_mix665k_dataloader(self.config.data, self.tokenizer)
 
     def train(self):
         self.model, self.optimizer, self.dataloader = self.accelerator.prepare(self.model, self.optimizer, self.dataloader)
