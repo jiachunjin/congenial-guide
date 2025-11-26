@@ -23,7 +23,7 @@ def img_describe():
     internvl = InternVLChatModel.from_pretrained(internvl_path)
     internvl = add_quantizer(internvl, config.model.quantizer)
     
-    ckpt_path = os.path.join(exp_dir, f"internvl-vq_llava_distill-{step}")
+    ckpt_path = os.path.join(exp_dir, f"quantizer-vq_llava_distill-{step}")
     print(ckpt_path)
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     m, u = internvl.load_state_dict(ckpt, strict=False)
