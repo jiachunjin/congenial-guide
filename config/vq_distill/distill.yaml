@@ -24,8 +24,8 @@ train:
   save_every: 5000
 
 data:
-  img_path: /data/phd/jinjiachun/dataset/llava_mix665k
-  ann_path: /data/phd/jinjiachun/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
+  img_path: /data/phd/data/dataset/llava_mix665k
+  ann_path: /data/phd/data/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
   batch_size: 20
   num_workers: 8
   max_seq_length: 768
