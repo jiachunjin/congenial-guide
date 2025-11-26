@@ -82,7 +82,7 @@ class MyTrainer(Trainer):
 
                     self.accelerator.wait_for_everyone()
 
-                    if self.global_step >= self.config.train.max_train_steps:
+                    if self.global_step >= self.config.train.num_iter:
                         training_done = True
                         break
 
