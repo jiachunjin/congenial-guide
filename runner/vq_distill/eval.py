@@ -16,10 +16,10 @@ def img_describe():
     device = torch.device("cuda")
     dtype = torch.bfloat16
 
-    exp_dir = "/data/phd/jinjiachun/experiment/vq_llava_distill/1126_lfq_mlp_14_intern1B"
-    step = 10000
+    exp_dir = "/data/phd/jinjiachun/experiment/vq_llava_distill/1126_lfq_mlp_14_intern2B"
+    step = 40000
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
-    internvl_path = "/data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-1B"
+    internvl_path = "/data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-2B"
     internvl = InternVLChatModel.from_pretrained(internvl_path)
     internvl = add_quantizer(internvl, config.model.quantizer)
     
@@ -46,7 +46,7 @@ def img_describe():
     print(response_raw)
 
 @torch.no_grad()
-def test_mme():
+def test_mme(args):
     from model.internvl.modeling_internvl_chat import InternVLChatModel
     from runner.vq_distill.distill import add_quantizer
 
@@ -54,11 +54,11 @@ def test_mme():
     dtype = torch.bfloat16
 
     # ---------- load trained internvl with new projector ----------
-    exp_dir = "/data/phd/jinjiachun/experiment/vq_llava_distill/1126_lfq_mlp_14_intern1B"
+    exp_dir = args.exp_dir
+    step = args.step
     exp_name = exp_dir.split("/")[-1]
-    step = 10000
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
-    internvl_path = "/data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-1B"
+    internvl_path = "/data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-2B"
     internvl = InternVLChatModel.from_pretrained(internvl_path)
     internvl = add_quantizer(internvl, config.model.quantizer)
     
@@ -117,5 +117,9 @@ def extract_yes_no_answer(response_raw):
     return response
 
 if __name__ == "__main__":
-    img_describe()
-    test_mme()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--exp_dir", required=True)
+    parser.add_argument("--step", required=True)
+    args = parser.parse_args()
+    test_mme(args)
