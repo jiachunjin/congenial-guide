@@ -50,7 +50,7 @@ def test_mme(args):
     from model.internvl.modeling_internvl_chat import InternVLChatModel
     from runner.vq_distill.distill import add_quantizer
 
-    device = torch.device("cuda")
+    device = args.device
     dtype = torch.bfloat16
 
     # ---------- load trained internvl with new projector ----------
@@ -121,5 +121,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_dir", required=True)
     parser.add_argument("--step", required=True)
+    parser.add_argument("--device", required=True)
     args = parser.parse_args()
     test_mme(args)
