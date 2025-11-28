@@ -87,7 +87,7 @@ def test_mme(args):
 
         question_prime = '<image>\n' + question
 
-        generation_config = dict(max_new_tokens=50, do_sample=False)
+        generation_config = dict(max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
 
         # construct visual features
         vit_feature = internvl.get_vit_feature(pixel_values)
@@ -116,11 +116,54 @@ def extract_yes_no_answer(response_raw):
         response = response_raw.split()[0].strip() if response_raw.split() else "unknown"
     return response
 
+@torch.no_grad()
+def test_mme_original():
+    from model.internvl.modeling_internvl_chat import InternVLChatModel
+
+    device = "cuda:0"
+    dtype = torch.bfloat16
+
+    # ---------- load trained internvl with new projector ----------
+    exp_name = "8B_continuous"
+    internvl_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-8B"
+    internvl = InternVLChatModel.from_pretrained(internvl_path)
+
+    internvl = internvl.to(device, dtype).eval()
+    tokenizer = AutoTokenizer.from_pretrained(internvl_path, trust_remote_code=True, use_fast=False)
+
+    data_files = {
+        "test": "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/darkyarding/MME/data/test-*-of-*.parquet"
+    }
+    dataset = load_dataset("parquet", data_files=data_files)
+
+    for i, data in enumerate(dataset["test"]):
+        img_name = data["question_id"].split("/")[-1]
+        category = data["category"]
+        image = data["image"].convert("RGB")
+        question = data["question"] + "Directly answer yes or no, with no other words."
+        gt_answer = data["answer"]
+
+        pixel_values = load_image(image, max_num=12).to(torch.bfloat16).to(device)
+
+        question_prime = '<image>\n' + question
+
+        generation_config = dict(max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+
+        response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
+
+        answer = extract_yes_no_answer(response_raw)
+        print(response_raw, answer)
+        os.makedirs(f"evaluation/understanding/mme/{exp_name}", exist_ok=True)
+        with open(f"evaluation/understanding/mme/{exp_name}/{category}.txt", "a") as f:
+            line = f"{img_name}\t{question}\t{gt_answer}\t{answer}\n"
+            f.write(line)
+
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--exp_dir", required=True)
-    parser.add_argument("--step", required=True)
-    parser.add_argument("--device", required=True)
-    args = parser.parse_args()
-    test_mme(args)
+    test_mme_original()
+    # import argparse
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--exp_dir", required=True)
+    # parser.add_argument("--step", required=True)
+    # parser.add_argument("--device", required=True)
+    # args = parser.parse_args()
+    # test_mme(args)
