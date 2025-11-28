@@ -58,7 +58,7 @@ def test_mme(args):
     step = args.step
     exp_name = exp_dir.split("/")[-1]
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
-    internvl_path = "/data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-2B"
+    internvl_path = config.model.internvl_path
     internvl = InternVLChatModel.from_pretrained(internvl_path)
     internvl = add_quantizer(internvl, config.model.quantizer)
     
@@ -72,7 +72,7 @@ def test_mme(args):
     tokenizer = AutoTokenizer.from_pretrained(internvl_path, trust_remote_code=True, use_fast=False)
 
     data_files = {
-        "test": "/data/phd/data/dataset/benchmark/darkyarding/MME/data/test-*-of-*.parquet"
+        "test": "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/darkyarding/MME/data/test-*-of-*.parquet"
     }
     dataset = load_dataset("parquet", data_files=data_files)
 
@@ -80,7 +80,7 @@ def test_mme(args):
         img_name = data["question_id"].split("/")[-1]
         category = data["category"]
         image = data["image"].convert("RGB")
-        question = data["question"]
+        question = data["question"] + "Directly answer yes or no, with no other words."
         gt_answer = data["answer"]
 
         pixel_values = load_image(image, max_num=12).to(torch.bfloat16).to(device)

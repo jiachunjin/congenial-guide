@@ -8,10 +8,15 @@ from torchvision.transforms.functional import InterpolationMode
 
 
 class LLaVAMix665K(torch.utils.data.Dataset):
-    def __init__(self, img_path, ann_path):
+    def __init__(self, img_path, ann_path, des_path):
         self.img_path = img_path
         self.ann_path = ann_path
-        self.data = json.load(open(ann_path, "r"))
+        llava_data = json.load(open(ann_path, "r"))
+        gpt_data = json.load(open(des_path, "r"))
+        data = llava_data + gpt_data
+        print(f"llava_data: {len(llava_data)}, gpt_data: {len(gpt_data)}")
+        print(f"data: {len(data)}")
+        self.data = data
     
     def __len__(self):
         return len(self.data)
@@ -136,7 +141,7 @@ def get_llava_mix665k_dataloader(config, tokenizer):
 
 
     dataloader = torch.utils.data.DataLoader(
-        LLaVAMix665K(config.img_path, config.ann_path),
+        LLaVAMix665K(config.img_path, config.ann_path, config.des_path),
         batch_size  = config.batch_size,
         shuffle     = True,
         num_workers = config.num_workers,
