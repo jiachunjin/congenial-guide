@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 from datasets import load_dataset
 from transformers import AutoTokenizer
 from util.dataloader_llava import load_image
+from tqdm import tqdm
 
 @torch.no_grad()
 def img_describe():
@@ -16,10 +17,10 @@ def img_describe():
     device = torch.device("cuda")
     dtype = torch.bfloat16
 
-    exp_dir = "/data/phd/jinjiachun/experiment/vq_llava_distill/1126_lfq_mlp_14_intern2B"
-    step = 40000
+    exp_dir = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1128_lfq_vit_16_intern4B_desdata"
+    step = 42000
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
-    internvl_path = "/data/phd/hf_models/ckpt/OpenGVLab/InternVL3_5-2B"
+    internvl_path = config.model.internvl_path
     internvl = InternVLChatModel.from_pretrained(internvl_path)
     internvl = add_quantizer(internvl, config.model.quantizer)
     
@@ -33,13 +34,13 @@ def img_describe():
     tokenizer = AutoTokenizer.from_pretrained(internvl_path, trust_remote_code=True, use_fast=False)
 
     # ---------- chat with the model ----------
-    image = "/data/phd/jinjiachun/codebase/ideal-octo-spork/asset/internet/messi_1.jpg"
+    image = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/非常厉害.png"
     pixel_values = load_image(image, max_num=12).to(torch.bfloat16).cuda()
-    question_prime = "<image>\n" + "Describe this image in great detail."
-    generation_config = dict(max_new_tokens=256, do_sample=True)
+    question_prime = "<image>\n" + "Describe this image in detail."
+    generation_config = dict(max_new_tokens=256, do_sample=False, pad_token_id=tokenizer.eos_token_id)
     # extract visual features from pixel values
     vit_feature = internvl.get_vit_feature(pixel_values)
-    print(pixel_values.shape, vit_feature.shape)
+    # print(pixel_values.shape, vit_feature.shape)
     visual_features, code = internvl.clip_quantizer(vit_feature)
     generation_config["visual_features"] = visual_features
     response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
@@ -76,7 +77,7 @@ def test_mme(args):
     }
     dataset = load_dataset("parquet", data_files=data_files)
 
-    for i, data in enumerate(dataset["test"]):
+    for data in tqdm(dataset["test"]):
         img_name = data["question_id"].split("/")[-1]
         category = data["category"]
         image = data["image"].convert("RGB")
@@ -97,7 +98,7 @@ def test_mme(args):
         response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
 
         answer = extract_yes_no_answer(response_raw)
-        print(response_raw, answer)
+        # print(response_raw, answer)
         model_name = ckpt_path.split("/")[-1]
         os.makedirs(f"evaluation/understanding/mme/{exp_name}_{step}", exist_ok=True)
         with open(f"evaluation/understanding/mme/{exp_name}_{step}/{category}.txt", "a") as f:
@@ -159,11 +160,12 @@ def test_mme_original():
             f.write(line)
 
 if __name__ == "__main__":
-    test_mme_original()
-    # import argparse
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--exp_dir", required=True)
-    # parser.add_argument("--step", required=True)
-    # parser.add_argument("--device", required=True)
-    # args = parser.parse_args()
-    # test_mme(args)
+    # img_describe()
+    # test_mme_original()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--exp_dir", required=True)
+    parser.add_argument("--step", required=True)
+    parser.add_argument("--device", default="cuda:0")
+    args = parser.parse_args()
+    test_mme(args)

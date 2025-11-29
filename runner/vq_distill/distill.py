@@ -56,6 +56,7 @@ class MyTrainer(Trainer):
                 with self.accelerator.accumulate(self.model):
                     self.model.train()
                     if batch is None:
+                        print("Batch is None, 出问题了!!!")
                         continue
 
                     pixel_values = batch["pixel_values"].to(self.dtype)

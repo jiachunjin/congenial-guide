@@ -8,8 +8,8 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1127_lfq_mlp_16_intern4B/quantizer-vq_llava_distill-10000
-  global_step: 10001
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1128_lfq_mlp_16_intern4B_desdata/quantizer-vq_llava_distill-50000
+  global_step: 50001
 
   exp_name: &exp_name vq_llava_distill
   proj_name: *exp_name
@@ -21,13 +21,13 @@ train:
 
   lr: 1e-4
   num_iter: 100000
-  save_every: 5000
+  save_every: 2000
 
 data:
   img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k
   ann_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
   des_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/output.json
-  batch_size: 16
+  batch_size: 18
   num_workers: 8
   max_seq_length: 640
   num_image_token: 256
