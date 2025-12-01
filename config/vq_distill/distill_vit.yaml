@@ -13,12 +13,12 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1128_lfq_vit_16_intern4B_desdata/quantizer-vq_llava_distill-36000
-  global_step: 36001
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1128_lfq_vit_16_intern4B_desdata/quantizer-vq_llava_distill-78000
+  global_step: 0
 
   exp_name: &exp_name vq_llava_distill
   proj_name: *exp_name
-  output_dir: 1128_lfq_vit_16_intern4B_desdata
+  output_dir: 1201_lfq_vit_16_intern4B_mseloss
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
@@ -27,6 +27,7 @@ train:
   lr: 1e-4
   num_iter: 100000
   save_every: 2000
+  hp_mse: 0.1
 
 data:
   img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k

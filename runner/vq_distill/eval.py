@@ -88,7 +88,7 @@ def test_mme(args):
 
         question_prime = '<image>\n' + question
 
-        generation_config = dict(max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        generation_config = dict(max_new_tokens=128, do_sample=False, pad_token_id=tokenizer.eos_token_id)
 
         # construct visual features
         vit_feature = internvl.get_vit_feature(pixel_values)
@@ -213,11 +213,11 @@ def test_mme_original_llamagen_reconstruction():
 if __name__ == "__main__":
     # img_describe()
     # test_mme_original()
-    test_mme_original_llamagen_reconstruction()
-    # import argparse
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--exp_dir", required=True)
-    # parser.add_argument("--step", required=True)
-    # parser.add_argument("--device", default="cuda:0")
-    # args = parser.parse_args()
-    # test_mme(args)
+    # test_mme_original_llamagen_reconstruction()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--exp_dir", required=True)
+    parser.add_argument("--step", required=True)
+    parser.add_argument("--device", default="cuda:0")
+    args = parser.parse_args()
+    test_mme(args)
