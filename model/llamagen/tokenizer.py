@@ -438,16 +438,17 @@ if __name__ == "__main__":
 
     # print(model)
     x = Image.open("/home/jiachun/codebase/congenial-guide/1.png").convert("RGB")
-    x = x.resize((256, 256))
+    x = x.resize((448, 448))
     x = ToTensor()(x).unsqueeze(0)
     x = x * 2.0 - 1.0
-    x = torch.cat([x, x], dim=0)
+    # x = torch.cat([x, x], dim=0)
     B = x.shape[0]
     with torch.no_grad():
         # reconstruction can work
         dec, diff = model(x)
         print(dec.shape, diff)
         dec = ((dec + 1) / 2).clamp(0, 1)
+        print(f"dec shape: {dec.shape}")
         rec = ToPILImage()(dec[0])
         rec.save("./rec_c2i.png")
 

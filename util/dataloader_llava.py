@@ -234,3 +234,30 @@ def load_image(image_file, input_size=448, max_num=12):
     pixel_values = [transform(image) for image in images]
     pixel_values = torch.stack(pixel_values)
     return pixel_values
+
+@torch.no_grad()
+def load_image_llamagen_recon(image_file, tok, input_size=448, max_num=12):
+    from torchvision.transforms import ToTensor, ToPILImage
+
+    if isinstance(image_file, Image.Image):
+        image = image_file
+    else:
+        try:
+            image = Image.open(image_file).convert("RGB")
+        except Exception as e:
+            print(f"Error loading image {image_file}: {e}")
+            return None
+
+    image = image.resize((input_size, input_size))
+    image = ToTensor()().unsqueeze(0)
+    image = image * 2.0 - 1.0
+    # reconstruction
+    dec, diff = tok(image)
+    dec = ((dec + 1) / 2).clamp(0, 1)
+    rec = ToPILImage()(dec[0])
+
+    transform = build_transform(input_size=input_size)
+    images = dynamic_preprocess(rec, image_size=input_size, use_thumbnail=True, max_num=max_num)
+    pixel_values = [transform(image) for image in images]
+    pixel_values = torch.stack(pixel_values)
+    return pixel_values
