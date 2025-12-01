@@ -249,7 +249,7 @@ def load_image_llamagen_recon(image_file, tok, input_size=448, max_num=12):
             return None
 
     image = image.resize((input_size, input_size))
-    image = ToTensor()().unsqueeze(0)
+    image = ToTensor()(image).unsqueeze(0).cuda()
     image = image * 2.0 - 1.0
     # reconstruction
     dec, diff = tok(image)

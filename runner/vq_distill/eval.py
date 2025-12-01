@@ -176,7 +176,7 @@ def test_mme_original_llamagen_reconstruction():
     tok = VQModel(ModelArgs(encoder_ch_mult=[1, 1, 2, 2, 4], decoder_ch_mult=[1, 1, 2, 2, 4]))
     tok_ckpt = torch.load(llamagen_path, map_location="cpu", weights_only=True)["model"]
     tok.load_state_dict(tok_ckpt, strict=True)
-    tok = tok.to(device, dtype).eval()
+    tok = tok.to(device, torch.float32).eval()
 
     data_files = {
         "test": "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/darkyarding/MME/data/test-*-of-*.parquet"
@@ -190,16 +190,16 @@ def test_mme_original_llamagen_reconstruction():
         question = data["question"] + "Directly answer yes or no, with no other words."
         gt_answer = data["answer"]
 
-        pixel_values = load_image_llamagen_recon(image, max_num=12).to(torch.bfloat16).to(device)
+        pixel_values = load_image_llamagen_recon(image, tok, max_num=12).to(torch.bfloat16).to(device)
 
         question_prime = '<image>\n' + question
 
         generation_config = dict(max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
 
         # construct visual features
-        vit_feature = internvl.get_vit_feature(pixel_values)
-        visual_features, code = internvl.clip_quantizer(vit_feature)
-        generation_config["visual_features"] = visual_features
+        # vit_feature = internvl.get_vit_feature(pixel_values)
+        # visual_features, code = internvl.clip_quantizer(vit_feature)
+        # generation_config["visual_features"] = visual_features
 
         response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
 
