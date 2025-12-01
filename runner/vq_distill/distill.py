@@ -111,7 +111,9 @@ class MyTrainer(Trainer):
                     # loss = kl_div
 
                     clip_mse = torch.nn.functional.mse_loss(x_vq, vit_embeds_teacher)
-                    loss = kl_div + self.config.train.hp_mse * clip_mse
+                    clip_cosine = 1 - torch.nn.functional.cosine_similarity(x_vq, vit_embeds_teacher, dim=-1).mean()
+
+                    loss = kl_div + self.config.train.hp_mse * clip_mse + self.config.train.hp_cosine * clip_cosine
 
                     self.accelerator.backward(loss)
 
@@ -125,6 +127,7 @@ class MyTrainer(Trainer):
                         logs = dict(
                             loss_und = self.accelerator.gather(kl_div.detach()).mean().item(),
                             clip_mse = self.accelerator.gather(clip_mse.detach()).mean().item(),
+                            clip_cosine = self.accelerator.gather(clip_cosine.detach()).mean().item(),
                         )
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)

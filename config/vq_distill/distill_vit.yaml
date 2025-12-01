@@ -18,7 +18,7 @@ train:
 
   exp_name: &exp_name vq_llava_distill
   proj_name: *exp_name
-  output_dir: 1201_lfq_vit_16_intern4B_mseloss
+  output_dir: 1201_lfq_vit_16_intern4B_mse_cosine
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
@@ -28,6 +28,7 @@ train:
   num_iter: 100000
   save_every: 2000
   hp_mse: 0.1
+  hp_cosine: 1
 
 data:
   img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k
