@@ -1,0 +1,55 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
+  quantizer:
+    type: ViT # [MLP, ViT]
+    input_feature_dim: 4096
+    output_dim: 16
+    llm_hidden_size: 2560
+    # ---- ViT only ----
+    hidden_size: 1024
+    depth: 16
+    num_heads: 16
+    grid_size: 16
+  pixel_decoder:
+    hidden_size: 1024
+    depth: 16
+    num_heads: 16
+    grid_size: 16
+    input_feature_dim: 2560
+    patch_size: 28
+  
+  rec_loss:
+    perceptual_loss_name: "lpips-convnext_s-1.0-0.1"
+    rec_weight: 1.0
+    perceptual_weight: 1.1
+    discriminator_weight: 0.1
+    lecam_regularization_weight: 0.001
+    discriminator_factor: 1.0
+    discriminator_start_iter: 0
+
+train:
+  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
+  resume_path: null
+  global_step: 0
+
+  exp_name: &exp_name vq_llava_distill
+  proj_name: *exp_name
+  output_dir: 1202_lfq_vit_16_add_pixel_decoder
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: swanlab
+
+  lr: 1e-4
+  num_iter: 100000
+  save_every: 2000
+  hp_rec: 0.1
+
+data:
+  img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k
+  ann_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
+  des_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/output.json
+  batch_size: 18
+  num_workers: 8
+  max_seq_length: 640
+  num_image_token: 256

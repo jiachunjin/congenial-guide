@@ -5,3 +5,6 @@ internvl_samples/
 evaluation/
 *.png
 *.ipynb
+cache/
+*.txt
+*.webp
