@@ -9,10 +9,19 @@ from util.trainer import Trainer
 
 def add_quantizer(internvl, config):
     from model.quantizer.lfq import get_lfq_quantizer
+    from model.quantizer.vq import get_vq_quantizer
 
-    clip_quantizer = get_lfq_quantizer(config)
+    vq_type = getattr(config, "vq_type", "lfq")
+    if vq_type == "lfq":
+        clip_quantizer = get_lfq_quantizer(config)
+    elif vq_type == "vq":
+        clip_quantizer = get_vq_quantizer(config)
+    else:
+        raise ValueError(f"Invalid VQ type: {vq_type}")
+
     clip_quantizer.requires_grad_(True)
     internvl.clip_quantizer = clip_quantizer
+    internvl.vq_type = vq_type  # 保存 vq_type 以便后续使用
     
     num_params = sum(p.numel() for p in internvl.clip_quantizer.parameters() if p.requires_grad)
     print(f"Trainable parameters in clip_quantizer: {num_params}")
@@ -67,7 +76,14 @@ class MyTrainer(Trainer):
                     # ---------- get visual feature ----------
                     with torch.no_grad():
                         vit_feature = self.model.get_vit_feature(pixel_values)
-                    x_vq, code = self.model.clip_quantizer(vit_feature)
+                    
+                    # 根据 vq_type 处理不同的返回值
+                    if self.model.vq_type == "lfq":
+                        x_vq, code = self.model.clip_quantizer(vit_feature)
+                        vq_loss = None
+                    else:  # vq
+                        x_vq, code, vq_loss = self.model.clip_quantizer(vit_feature)
+                    
                     vit_embeds_teacher = self.teacher.mlp1(vit_feature)
 
                     # ---------- build input embeddings for teacher and model ----------
@@ -110,6 +126,11 @@ class MyTrainer(Trainer):
                     kl_div = torch.nn.functional.kl_div(answer_logits_student_log_softmax, answer_logits_teacher_log_softmax, log_target=True, reduction="batchmean")
                     loss = kl_div
 
+                    # 如果是 VQ quantizer，加入 vq_loss
+                    if vq_loss is not None:
+                        hp_vq = getattr(self.config.train, "hp_vq", 1.0)
+                        loss = loss + hp_vq * vq_loss
+
                     # clip_mse = torch.nn.functional.mse_loss(x_vq, vit_embeds_teacher)
                     # clip_cosine = 1 - torch.nn.functional.cosine_similarity(x_vq, vit_embeds_teacher, dim=-1).mean()
 
@@ -127,6 +148,9 @@ class MyTrainer(Trainer):
                         logs = dict(
                             loss_und = self.accelerator.gather(kl_div.detach()).mean().item(),
                         )
+                        # 如果是 VQ quantizer，记录 vq_loss
+                        if vq_loss is not None:
+                            logs["vq_loss"] = self.accelerator.gather(vq_loss.detach()).mean().item()
                         # if self.config.train.hp_mse != 0:
                         #     logs["clip_mse"] = self.accelerator.gather(clip_mse.detach()).mean().item(),
                         # if self.config.train.hp_cosine != 0:
