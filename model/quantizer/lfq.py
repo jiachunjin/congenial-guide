@@ -20,6 +20,7 @@ class LFQ_MLP(nn.Module):
             nn.GELU(),
             nn.Linear(4 * config.input_feature_dim, config.output_dim),
         )
+        # self.codebook = nn.Linear(config.output_dim, 4096)
         self.up_proj = nn.Sequential(
             nn.Linear(config.output_dim, 4 * config.llm_hidden_size),
             nn.GELU(),

@@ -17,8 +17,8 @@ def img_describe():
     device = torch.device("cuda")
     dtype = torch.bfloat16
 
-    exp_dir = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1128_lfq_vit_16_intern4B_desdata"
-    step = 42000
+    exp_dir = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1201_lfq_mlp_16_intern4B_mseloss"
+    step = 2000
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
     internvl_path = config.model.internvl_path
     internvl = InternVLChatModel.from_pretrained(internvl_path)

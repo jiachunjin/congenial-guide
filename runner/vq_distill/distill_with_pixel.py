@@ -24,7 +24,7 @@ class MyTrainer(Trainer):
         internvl = add_quantizer(internvl, self.config.model.quantizer)
 
         pixel_decoder = ViT_Decoder(self.config.model.pixel_decoder)
-        rec_loss = RecLoss(self.config.rec_loss)
+        rec_loss = RecLoss(self.config.model.rec_loss)
         internvl.pixel_decoder = pixel_decoder
         internvl.rec_loss = rec_loss
 
@@ -68,7 +68,7 @@ class MyTrainer(Trainer):
         self.dataloader = get_llava_mix665k_dataloader(self.config.data, self.tokenizer)
 
     def train(self):
-        self.model, self.optimizer, self.optimizer_disc, self.dataloader = self.accelerator.prepare(self.model, self.optimizer, self.optimizer_disc. self.dataloader)
+        self.model, self.optimizer, self.optimizer_disc, self.dataloader = self.accelerator.prepare(self.model, self.optimizer, self.optimizer_disc, self.dataloader)
 
         training_done = False
         while not training_done:

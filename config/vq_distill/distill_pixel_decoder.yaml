@@ -25,7 +25,7 @@ model:
     discriminator_weight: 0.1
     lecam_regularization_weight: 0.001
     discriminator_factor: 1.0
-    discriminator_start_iter: 0
+    discriminator_start_iter: 10000
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
@@ -41,6 +41,7 @@ train:
   report_to: swanlab
 
   lr: 1e-4
+  lr_disc: 1e-5
   num_iter: 100000
   save_every: 2000
   hp_rec: 0.1
@@ -49,7 +50,7 @@ data:
   img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k
   ann_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
   des_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/output.json
-  batch_size: 18
+  batch_size: 12
   num_workers: 8
-  max_seq_length: 640
+  max_seq_length: 576
   num_image_token: 256

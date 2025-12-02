@@ -154,6 +154,6 @@ class RecLoss(nn.Module):
 
 if __name__ == "__main__":
     from omegaconf import OmegaConf
-    config = OmegaConf.load("config/vq_distill/pixel_decoder_test.yaml")
+    config = OmegaConf.load("config/vq_distill/distill_pixel_decoder.yaml")
     rec_loss = RecLoss(config.model.rec_loss)
     print(rec_loss)

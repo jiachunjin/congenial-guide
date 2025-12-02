@@ -108,12 +108,12 @@ class MyTrainer(Trainer):
                     answer_logits_student_log_softmax = torch.nn.functional.log_softmax(answer_logits_student, dim=-1)
                     answer_logits_teacher_log_softmax = torch.nn.functional.log_softmax(answer_logits_teacher, dim=-1)
                     kl_div = torch.nn.functional.kl_div(answer_logits_student_log_softmax, answer_logits_teacher_log_softmax, log_target=True, reduction="batchmean")
-                    # loss = kl_div
+                    loss = kl_div
 
-                    clip_mse = torch.nn.functional.mse_loss(x_vq, vit_embeds_teacher)
-                    clip_cosine = 1 - torch.nn.functional.cosine_similarity(x_vq, vit_embeds_teacher, dim=-1).mean()
+                    # clip_mse = torch.nn.functional.mse_loss(x_vq, vit_embeds_teacher)
+                    # clip_cosine = 1 - torch.nn.functional.cosine_similarity(x_vq, vit_embeds_teacher, dim=-1).mean()
 
-                    loss = kl_div + self.config.train.hp_mse * clip_mse + self.config.train.hp_cosine * clip_cosine
+                    # loss = kl_div + self.config.train.hp_mse * clip_mse + self.config.train.hp_cosine * clip_cosine
 
                     self.accelerator.backward(loss)
 
@@ -126,9 +126,12 @@ class MyTrainer(Trainer):
                         self.progress_bar.update(1)
                         logs = dict(
                             loss_und = self.accelerator.gather(kl_div.detach()).mean().item(),
-                            clip_mse = self.accelerator.gather(clip_mse.detach()).mean().item(),
-                            clip_cosine = self.accelerator.gather(clip_cosine.detach()).mean().item(),
                         )
+                        # if self.config.train.hp_mse != 0:
+                        #     logs["clip_mse"] = self.accelerator.gather(clip_mse.detach()).mean().item(),
+                        # if self.config.train.hp_cosine != 0:
+                        #     logs["clip_cosine"] = self.accelerator.gather(clip_cosine.detach()).mean().item(),
+
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
 
