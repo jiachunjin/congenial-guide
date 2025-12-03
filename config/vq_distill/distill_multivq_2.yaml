@@ -1,0 +1,38 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
+  quantizer:
+    vq_type: multi_vq # [vq, lfq, multi_vq]
+    type: MLP # [MLP, ViT]
+    input_feature_dim: 4096
+    embedding_dim: 256
+    llm_hidden_size: 2560
+    num_embeddings: 2048
+    num_codebooks: 8
+
+train:
+  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
+  resume_path: null
+  global_step: 0
+
+  exp_name: &exp_name vq_llava_distill
+  proj_name: *exp_name
+  output_dir: 1203_multivq_mlp_4B_256_8x2048
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: swanlab
+
+  lr: 1e-4
+  num_iter: 100000
+  save_every: 5000
+  hp_vq: 1.0
+
+
+data:
+  img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k
+  ann_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
+  des_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/output.json
+  batch_size: 20
+  num_workers: 8
+  max_seq_length: 640
+  num_image_token: 256

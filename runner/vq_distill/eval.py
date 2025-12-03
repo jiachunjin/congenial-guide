@@ -77,7 +77,13 @@ def test_mme(args):
     }
     dataset = load_dataset("parquet", data_files=data_files)
 
-    all_codes = []
+    all_codes = []  # 用于 vq / lfq
+    all_codes_multi = None  # 用于 multi_vq，存储 list of lists
+
+    vq_type = getattr(config.model.quantizer, "vq_type", "lfq")
+    if vq_type == "multi_vq":
+        num_codebooks = getattr(config.model.quantizer, "num_codebooks", 4)
+        all_codes_multi = [[] for _ in range(num_codebooks)]
 
     for data in tqdm(dataset["test"]):
         img_name = data["question_id"].split("/")[-1]
@@ -94,7 +100,6 @@ def test_mme(args):
 
         # construct visual features
         vit_feature = internvl.get_vit_feature(pixel_values)
-        vq_type = getattr(config.model.quantizer, "vq_type", "lfq")
         if vq_type == "lfq":
             visual_features, code_bin = internvl.clip_quantizer(vit_feature)
             # 将 binary code 转换为 indices
@@ -109,8 +114,15 @@ def test_mme(args):
         elif vq_type == "multi_vq":
             visual_features, code, _ = internvl.clip_quantizer(vit_feature)
 
+        # 收集 codes
         if code is not None:
-            all_codes.extend(code.view(-1).cpu().tolist())
+            if vq_type == "multi_vq":
+                # code shape: (B, L, num_codebooks)，分别收集每个 codebook
+                for cb_idx in range(code.shape[-1]):
+                    all_codes_multi[cb_idx].extend(code[..., cb_idx].view(-1).cpu().tolist())
+            else:
+                # code shape: (B, L)
+                all_codes.extend(code.view(-1).cpu().tolist())
 
         generation_config["visual_features"] = visual_features
 
@@ -124,25 +136,52 @@ def test_mme(args):
             line = f"{img_name}\t{question}\t{gt_answer}\t{answer}\n"
             f.write(line)
 
-    total_codes = 65536
-    if len(all_codes) > 0:
-        all_codes_tensor = torch.tensor(all_codes, dtype=torch.long)
-        # 1. 计算频次
-        counts = torch.bincount(all_codes_tensor, minlength=total_codes).float()
+    # 统计 codebook 利用率
+    total_codes = config.model.quantizer.num_embeddings
+    
+    if vq_type == "multi_vq" and all_codes_multi is not None and len(all_codes_multi[0]) > 0:
+        # multi_vq: 分别统计每个 codebook
+        print(f"\n=== Multi-VQ Codebook Statistics ({num_codebooks} codebooks) ===")
+        total_utilization = 0.0
+        total_entropy = 0.0
+        total_perplexity = 0.0
         
-        # 2. 计算概率分布
+        for cb_idx, cb_codes in enumerate(all_codes_multi):
+            codes_tensor = torch.tensor(cb_codes, dtype=torch.long)
+            counts = torch.bincount(codes_tensor, minlength=total_codes).float()
+            probs = counts / counts.sum()
+            
+            active_mask = counts > 0
+            utilization = active_mask.float().mean().item()
+            unique_count = active_mask.sum().item()
+            
+            entropy = -torch.sum(probs * torch.log(probs + 1e-10))
+            perplexity = torch.exp(entropy).item()
+            
+            print(f"Codebook {cb_idx}: utilization={utilization:.4f} ({unique_count}/{total_codes}), "
+                  f"entropy={entropy.item():.4f}, perplexity={perplexity:.2f}")
+            
+            total_utilization += utilization
+            total_entropy += entropy.item()
+            total_perplexity += perplexity
+        
+        # 输出平均值
+        print(f"--- Average ---")
+        print(f"Avg utilization: {total_utilization / num_codebooks:.4f}")
+        print(f"Avg entropy: {total_entropy / num_codebooks:.4f}")
+        print(f"Avg perplexity: {total_perplexity / num_codebooks:.2f} (Max: {total_codes})")
+        
+    elif len(all_codes) > 0:
+        # vq / lfq: 单一 codebook
+        all_codes_tensor = torch.tensor(all_codes, dtype=torch.long)
+        counts = torch.bincount(all_codes_tensor, minlength=total_codes).float()
         probs = counts / counts.sum()
         
-        # 3. 计算利用率 (Unique Usage)
         active_mask = counts > 0
         utilization = active_mask.float().mean().item()
         unique_count = active_mask.sum().item()
         
-        # 4. 计算熵 (Entropy)
-        # 加上 1e-10 避免 log(0)
         entropy = -torch.sum(probs * torch.log(probs + 1e-10))
-        
-        # 5. 计算困惑度 (Perplexity)
         perplexity = torch.exp(entropy).item()
         
         print(f"Code utilization: {utilization:.4f} ({unique_count}/{total_codes})")
