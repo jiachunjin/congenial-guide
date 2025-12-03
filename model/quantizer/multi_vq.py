@@ -21,9 +21,6 @@ class MultiVectorQuantizer(nn.Module):
         num_codebooks, 
         commitment_cost=0.25, 
         ema_decay=0.99,
-        reset_unused_codes=True,
-        usage_threshold=1e-4,
-        max_reset_codes_per_step=10
     ):
         super().__init__()
         self.num_codebooks = num_codebooks
@@ -42,9 +39,6 @@ class MultiVectorQuantizer(nn.Module):
                 embedding_dim            = self.dim_per_codebook,
                 commitment_cost          = commitment_cost,
                 ema_decay                = ema_decay,
-                reset_unused_codes       = reset_unused_codes,
-                usage_threshold          = usage_threshold,
-                max_reset_codes_per_step = max_reset_codes_per_step
             )
             for _ in range(num_codebooks)
         ])

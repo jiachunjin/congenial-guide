@@ -12,7 +12,7 @@ def add_quantizer(internvl, config):
     from model.quantizer.vq import get_vq_quantizer
     from model.quantizer.multi_vq import get_multi_vq_quantizer
 
-    vq_type = getattr(config, "vq_type", "lfq", "multi_vq")
+    vq_type = getattr(config, "vq_type", "lfq")
     if vq_type == "lfq":
         clip_quantizer = get_lfq_quantizer(config)
     elif vq_type == "vq":
