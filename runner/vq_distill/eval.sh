@@ -1,6 +1,6 @@
 EXPDIR=1202_mlp_16_8B
 # EXPDIR=1202_vq_mlp_65536_4B
-STEP=70000
+STEP=72000
 python runner/vq_distill/eval.py \
 --exp_dir /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/${EXPDIR} \
 --step ${STEP} \

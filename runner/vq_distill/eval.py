@@ -66,7 +66,7 @@ def test_mme(args):
     ckpt_path = os.path.join(exp_dir, f"quantizer-vq_llava_distill-{step}")
     print(ckpt_path)
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    m, u = internvl.clip_quantizer.load_state_dict(ckpt, strict=True)
+    m, u = internvl.clip_quantizer.load_state_dict(ckpt, strict=False)
     print(f"missing keys: {m}, unmatched keys: {u}")    
 
     internvl = internvl.to(device, dtype).eval()

@@ -31,6 +31,8 @@ class VectorQuantizer(nn.Module):
         
         # EMA 统计：追踪每个 code 的使用频率
         self.register_buffer("ema_usage", torch.zeros(num_embeddings))
+        # 这里的初始值设为均匀分布，避免刚开始就误判为死码
+        self.ema_usage.fill_(1.0 / num_embeddings)
 
     def forward(self, z):
         """
@@ -41,21 +43,32 @@ class VectorQuantizer(nn.Module):
         z_flat = z.reshape(-1, D)  # (B*L, D)
 
         # 计算与codebook的距离: ||z - e||^2 = ||z||^2 + ||e||^2 - 2*z*e
-        distances = (
-            torch.sum(z_flat ** 2, dim=1, keepdim=True)
-            + torch.sum(self.codebook.weight ** 2, dim=1)
-            - 2 * torch.matmul(z_flat, self.codebook.weight.t())
-        )  # (B*L, num_embeddings)
+        # (B*L, num_embeddings)
+        d2 = torch.sum(z_flat ** 2, dim=1, keepdim=True) + \
+             torch.sum(self.codebook.weight ** 2, dim=1) - \
+             2 * torch.matmul(z_flat, self.codebook.weight.t())
 
         # 找到最近的codebook向量
-        indices = torch.argmin(distances, dim=1)  # (B*L,)
+        indices = torch.argmin(d2, dim=1)  # (B*L,)
         z_q_flat = self.codebook(indices)  # (B*L, D)
         z_q = z_q_flat.reshape(B, L, D)  # (B, L, D)
 
         # VQ损失: codebook loss + commitment loss
         codebook_loss = F.mse_loss(z_q, z.detach())
         commitment_loss = F.mse_loss(z_q.detach(), z)
-        vq_loss = codebook_loss + self.commitment_cost * commitment_loss
+        
+        # 3. Entropy Loss (新增): 鼓励 code 使用分布均匀，最大化熵 = 最小化 -entropy
+        # 计算当前 batch 的 code 使用概率
+        # 使用 softmax(-distance) 作为软分配概率，比硬分配 indices 更平滑，梯度更好
+        # 这里的 temperature 可以调节，通常取 1.0 或更小
+        probs = F.softmax(-d2, dim=1)  # (B*L, num_embeddings)
+        avg_probs = probs.mean(dim=0)  # (num_embeddings,)
+        entropy = -torch.sum(avg_probs * torch.log(avg_probs + 1e-10))
+        # 这是一个正则项，通常系数不用太大，比如 0.1 左右
+        # 我们这里直接加到 vq_loss 里，系数设为 0.1 (经验值)
+        entropy_loss = -entropy
+
+        vq_loss = codebook_loss + self.commitment_cost * commitment_loss + 0.1 * entropy_loss
 
         # Straight-Through Estimator: 前向用z_q，反向用z的梯度
         z_q = z + (z_q - z).detach()
@@ -63,11 +76,43 @@ class VectorQuantizer(nn.Module):
         # 更新 EMA 使用统计（仅在训练时）
         if self.training:
             with torch.no_grad():
-                # 计算当前 batch 每个 code 的使用次数
-                batch_usage = torch.bincount(indices, minlength=self.num_embeddings).float()
-                batch_usage = batch_usage / batch_usage.sum()  # 归一化为概率
-                # EMA 更新
+                # 1. 更新 EMA
+                encodings = F.one_hot(indices, self.num_embeddings).float()
+                batch_usage = encodings.mean(dim=0)  # 当前 batch 的使用频率
                 self.ema_usage = self.ema_decay * self.ema_usage + (1 - self.ema_decay) * batch_usage
+
+                # 2. 死码重置 (Codebook Restart)
+                # 阈值：如果使用频率低于均匀分布的 3% (经验值)，认为它是死码
+                usage_threshold = 0.03 / self.num_embeddings
+                
+                # 找出死码
+                dead_mask = self.ema_usage < usage_threshold
+                if dead_mask.any():
+                    dead_indices = torch.nonzero(dead_mask).squeeze(-1)
+                    
+                    # 限制每次重置的数量，避免震荡 (例如每次最多重置 10% 的死码 或 固定数量)
+                    # 这里我们限制每个 step 最多重置 64 个，慢慢救活
+                    num_reset = min(64, dead_indices.numel())
+                    
+                    # 随机选择要重置的死码
+                    perm_dead = torch.randperm(dead_indices.numel(), device=dead_indices.device)[:num_reset]
+                    reset_indices = dead_indices[perm_dead]
+                    
+                    # 从当前 batch 的输入 z 中随机采样作为新的 codebook 向量
+                    # 这样可以保证新的 code 位于真实数据分布上
+                    if B * L >= num_reset:
+                        perm_z = torch.randperm(B * L, device=z.device)[:num_reset]
+                        new_codes = z_flat[perm_z].detach()
+                    else:
+                        # 如果 batch size 不够大，允许重复采样
+                        rand_idx = torch.randint(0, B * L, (num_reset,), device=z.device)
+                        new_codes = z_flat[rand_idx].detach()
+                    
+                    # 执行重置
+                    self.codebook.weight.data[reset_indices] = new_codes
+                    
+                    # 重置这些 code 的 EMA 统计，给它们“重新做人”的机会
+                    self.ema_usage[reset_indices] = 1.0 / self.num_embeddings
 
         indices = indices.reshape(B, L)  # (B, L)
 

@@ -10,8 +10,8 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1202_vq_mlp_65536_4B/quantizer-vq_llava_distill-45000
-  global_step: 45001
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1202_vq_mlp_65536_4B/quantizer-vq_llava_distill-50000
+  global_step: 50001
 
   exp_name: &exp_name vq_llava_distill
   proj_name: *exp_name
