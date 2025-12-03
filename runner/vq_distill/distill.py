@@ -148,13 +148,14 @@ class MyTrainer(Trainer):
                         logs = dict(
                             loss_und = self.accelerator.gather(kl_div.detach()).mean().item(),
                         )
-                        # 如果是 VQ quantizer，记录 vq_loss
+                        # 如果是 VQ quantizer，记录 vq_loss 和 codebook 利用率
                         if vq_loss is not None:
                             logs["vq_loss"] = self.accelerator.gather(vq_loss.detach()).mean().item()
-                        # if self.config.train.hp_mse != 0:
-                        #     logs["clip_mse"] = self.accelerator.gather(clip_mse.detach()).mean().item(),
-                        # if self.config.train.hp_cosine != 0:
-                        #     logs["clip_cosine"] = self.accelerator.gather(clip_cosine.detach()).mean().item(),
+                            # 获取 codebook 利用率指标（基于 EMA 统计）
+                            unwrapped_model = self.accelerator.unwrap_model(self.model)
+                            usage_stats = unwrapped_model.clip_quantizer.quantizer.get_codebook_usage()
+                            logs["perplexity"] = usage_stats["perplexity"]
+                            logs["utilization"] = usage_stats["utilization"]
 
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
