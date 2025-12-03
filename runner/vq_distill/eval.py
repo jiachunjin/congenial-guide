@@ -105,8 +105,10 @@ def test_mme(args):
             else:
                 code = None
         elif vq_type == "vq":
-            visual_features, code, vq_loss = internvl.clip_quantizer(vit_feature)
-        
+            visual_features, code, _ = internvl.clip_quantizer(vit_feature)
+        elif vq_type == "multi_vq":
+            visual_features, code, _ = internvl.clip_quantizer(vit_feature)
+
         if code is not None:
             all_codes.extend(code.view(-1).cpu().tolist())
 

@@ -68,7 +68,16 @@ class VectorQuantizer(nn.Module):
         # 我们这里直接加到 vq_loss 里，系数设为 0.1 (经验值)
         entropy_loss = -entropy
 
-        vq_loss = codebook_loss + self.commitment_cost * commitment_loss + 0.1 * entropy_loss
+        # 分开记录各损失分量
+        codebook_commitment_loss = codebook_loss + self.commitment_cost * commitment_loss
+        scaled_entropy_loss = 0.1 * entropy_loss
+        vq_loss = codebook_commitment_loss + scaled_entropy_loss
+        
+        vq_loss_dict = {
+            "total": vq_loss,
+            "codebook_commitment": codebook_commitment_loss,
+            "entropy": scaled_entropy_loss,
+        }
 
         # Straight-Through Estimator: 前向用z_q，反向用z的梯度
         z_q = z + (z_q - z).detach()
@@ -116,7 +125,7 @@ class VectorQuantizer(nn.Module):
 
         indices = indices.reshape(B, L)  # (B, L)
 
-        return z_q, indices, vq_loss
+        return z_q, indices, vq_loss_dict
     
     def get_codebook_usage(self):
         """
@@ -170,13 +179,13 @@ class VQ_MLP(nn.Module):
     def forward(self, x):
         """
         :param x: (B, 256, 4096), the input clip features
-        :return: x_vq: 重建的特征, indices: codebook索引, vq_loss: VQ损失
+        :return: x_vq: 重建的特征, indices: codebook索引, vq_loss_dict: VQ损失字典
         """
         z = self.down_proj(x)  # (B, 256, output_dim)
-        z_q, indices, vq_loss = self.quantizer(z)  # (B, 256, output_dim)
+        z_q, indices, vq_loss_dict = self.quantizer(z)  # (B, 256, output_dim)
         x_vq = self.up_proj(z_q)  # (B, 256, llm_hidden_size)
 
-        return x_vq, indices, vq_loss
+        return x_vq, indices, vq_loss_dict
 
     @torch.no_grad()
     def get_ids(self, x):
@@ -207,13 +216,13 @@ class VQ_ViT(nn.Module):
     def forward(self, x):
         """
         :param x: (B, 256, 4096), the input clip features
-        :return: x_vq: 重建的特征, indices: codebook索引, vq_loss: VQ损失
+        :return: x_vq: 重建的特征, indices: codebook索引, vq_loss_dict: VQ损失字典
         """
         z = self.down_proj(x)  # (B, 256, output_dim)
-        z_q, indices, vq_loss = self.quantizer(z)  # (B, 256, output_dim)
+        z_q, indices, vq_loss_dict = self.quantizer(z)  # (B, 256, output_dim)
         x_vq = self.up_proj(z_q)  # (B, 256, llm_hidden_size)
 
-        return x_vq, indices, vq_loss
+        return x_vq, indices, vq_loss_dict
 
     @torch.no_grad()
     def get_ids(self, x):
@@ -243,10 +252,12 @@ if __name__ == "__main__":
 
     model = get_vq_quantizer(config.model.quantizer)
     x = torch.randn(2, 256, 4096)
-    x_vq, indices, vq_loss = model(x)
+    x_vq, indices, vq_loss_dict = model(x)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Number of parameters: {num_params/1e6:.2f}M")
     print(f"x_vq shape: {x_vq.shape}")
     print(f"indices shape: {indices.shape}")
-    print(f"vq_loss: {vq_loss.item():.4f}")
+    print(f"vq_loss (total): {vq_loss_dict['total'].item():.4f}")
+    print(f"vq_loss (codebook_commitment): {vq_loss_dict['codebook_commitment'].item():.4f}")
+    print(f"vq_loss (entropy): {vq_loss_dict['entropy'].item():.4f}")

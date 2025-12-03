@@ -83,9 +83,9 @@ class MyTrainer(Trainer):
                     # 根据 vq_type 处理不同的返回值
                     if self.model.vq_type == "lfq":
                         x_vq, code = self.model.clip_quantizer(vit_feature)
-                        vq_loss = None
-                    else:  # vq
-                        x_vq, code, vq_loss = self.model.clip_quantizer(vit_feature)
+                        vq_loss_dict = None
+                    else:  # vq 或 multi_vq
+                        x_vq, code, vq_loss_dict = self.model.clip_quantizer(vit_feature)
                     
                     vit_embeds_teacher = self.teacher.mlp1(vit_feature)
 
@@ -130,9 +130,9 @@ class MyTrainer(Trainer):
                     loss = kl_div
 
                     # 如果是 VQ quantizer，加入 vq_loss
-                    if vq_loss is not None:
+                    if vq_loss_dict is not None:
                         hp_vq = getattr(self.config.train, "hp_vq", 1.0)
-                        loss = loss + hp_vq * vq_loss
+                        loss = loss + hp_vq * vq_loss_dict["total"]
 
                     # clip_mse = torch.nn.functional.mse_loss(x_vq, vit_embeds_teacher)
                     # clip_cosine = 1 - torch.nn.functional.cosine_similarity(x_vq, vit_embeds_teacher, dim=-1).mean()
@@ -152,8 +152,10 @@ class MyTrainer(Trainer):
                             loss_und = self.accelerator.gather(kl_div.detach()).mean().item(),
                         )
                         # 如果是 VQ quantizer，记录 vq_loss 和 codebook 利用率
-                        if vq_loss is not None:
-                            logs["vq_loss"] = self.accelerator.gather(vq_loss.detach()).mean().item()
+                        if vq_loss_dict is not None:
+                            logs["vq_loss"] = self.accelerator.gather(vq_loss_dict["total"].detach()).mean().item()
+                            logs["vq_codebook_commitment"] = self.accelerator.gather(vq_loss_dict["codebook_commitment"].detach()).mean().item()
+                            logs["vq_entropy"] = self.accelerator.gather(vq_loss_dict["entropy"].detach()).mean().item()
                             # 获取 codebook 利用率指标（基于 EMA 统计）
                             unwrapped_model = self.accelerator.unwrap_model(self.model)
                             usage_stats = unwrapped_model.clip_quantizer.quantizer.get_codebook_usage()

@@ -49,7 +49,7 @@ class MultiVectorQuantizer(nn.Module):
         :return: 
             z_q: (B, L, D) 量化后的特征 (拼接后)
             indices: (B, L, num_codebooks) 每个head的codebook索引
-            vq_loss: 标量loss (所有head的平均或总和)
+            vq_loss_dict: 损失字典 (所有head的平均)
         """
         B, L, D = z.shape
         assert D == self.embedding_dim
@@ -61,6 +61,8 @@ class MultiVectorQuantizer(nn.Module):
         z_q_list = []
         indices_list = []
         total_vq_loss = 0.0
+        total_codebook_commitment = 0.0
+        total_entropy = 0.0
         
         # 对每个切片分别进行量化
         for i, quantizer in enumerate(self.quantizers):
@@ -69,11 +71,13 @@ class MultiVectorQuantizer(nn.Module):
             
             # z_q_chunk: (B, L, dim_per_codebook)
             # indices_chunk: (B, L)
-            z_q_chunk, indices_chunk, loss_chunk = quantizer(z_chunk)
+            z_q_chunk, indices_chunk, loss_dict_chunk = quantizer(z_chunk)
             
             z_q_list.append(z_q_chunk)
             indices_list.append(indices_chunk)
-            total_vq_loss += loss_chunk
+            total_vq_loss += loss_dict_chunk["total"]
+            total_codebook_commitment += loss_dict_chunk["codebook_commitment"]
+            total_entropy += loss_dict_chunk["entropy"]
             
         # 拼接回原始维度
         z_q = torch.cat(z_q_list, dim=-1) # (B, L, D)
@@ -82,9 +86,13 @@ class MultiVectorQuantizer(nn.Module):
         indices = torch.stack(indices_list, dim=-1)
         
         # Loss 取平均
-        avg_vq_loss = total_vq_loss / self.num_codebooks
+        vq_loss_dict = {
+            "total": total_vq_loss / self.num_codebooks,
+            "codebook_commitment": total_codebook_commitment / self.num_codebooks,
+            "entropy": total_entropy / self.num_codebooks,
+        }
         
-        return z_q, indices, avg_vq_loss
+        return z_q, indices, vq_loss_dict
 
     def get_codebook_usage(self):
         """
@@ -142,9 +150,9 @@ class VQ_MLP_MultiHead(nn.Module):
 
     def forward(self, x):
         z = self.down_proj(x)
-        z_q, indices, vq_loss = self.quantizer(z)
+        z_q, indices, vq_loss_dict = self.quantizer(z)
         x_vq = self.up_proj(z_q)
-        return x_vq, indices, vq_loss
+        return x_vq, indices, vq_loss_dict
 
 def get_multi_vq_quantizer(config):
     # 这里可以根据 config 返回 MLP 或 ViT 版本的 Multi-VQ
