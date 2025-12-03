@@ -77,6 +77,8 @@ def test_mme(args):
     }
     dataset = load_dataset("parquet", data_files=data_files)
 
+    all_codes = []
+
     for data in tqdm(dataset["test"]):
         img_name = data["question_id"].split("/")[-1]
         category = data["category"]
@@ -94,9 +96,20 @@ def test_mme(args):
         vit_feature = internvl.get_vit_feature(pixel_values)
         vq_type = getattr(config.model.quantizer, "vq_type", "lfq")
         if vq_type == "lfq":
-            visual_features, code = internvl.clip_quantizer(vit_feature)
+            visual_features, code_bin = internvl.clip_quantizer(vit_feature)
+            # 将 binary code 转换为 indices
+            if code_bin is not None:
+                D = code_bin.shape[-1]
+                powers = 2 ** torch.arange(D, device=code_bin.device)
+                code = (code_bin.long() * powers).sum(dim=-1)
+            else:
+                code = None
         elif vq_type == "vq":
             visual_features, code, vq_loss = internvl.clip_quantizer(vit_feature)
+        
+        if code is not None:
+            all_codes.extend(code.view(-1).cpu().tolist())
+
         generation_config["visual_features"] = visual_features
 
         response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
@@ -108,6 +121,33 @@ def test_mme(args):
         with open(f"evaluation/understanding/mme/{exp_name}_{step}/{category}.txt", "a") as f:
             line = f"{img_name}\t{question}\t{gt_answer}\t{answer}\n"
             f.write(line)
+
+    total_codes = 65536
+    if len(all_codes) > 0:
+        all_codes_tensor = torch.tensor(all_codes, dtype=torch.long)
+        # 1. 计算频次
+        counts = torch.bincount(all_codes_tensor, minlength=total_codes).float()
+        
+        # 2. 计算概率分布
+        probs = counts / counts.sum()
+        
+        # 3. 计算利用率 (Unique Usage)
+        active_mask = counts > 0
+        utilization = active_mask.float().mean().item()
+        unique_count = active_mask.sum().item()
+        
+        # 4. 计算熵 (Entropy)
+        # 加上 1e-10 避免 log(0)
+        entropy = -torch.sum(probs * torch.log(probs + 1e-10))
+        
+        # 5. 计算困惑度 (Perplexity)
+        perplexity = torch.exp(entropy).item()
+        
+        print(f"Code utilization: {utilization:.4f} ({unique_count}/{total_codes})")
+        print(f"Entropy: {entropy.item():.4f}")
+        print(f"Perplexity: {perplexity:.2f} (Max: {total_codes})")
+    else:
+        print("No codes collected.")
 
 def extract_yes_no_answer(response_raw):
     import re
