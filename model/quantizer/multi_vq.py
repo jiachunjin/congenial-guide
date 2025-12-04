@@ -1,7 +1,96 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from functools import partial
+from timm.layers import get_norm_layer
+
 from model.quantizer.vq import VectorQuantizer
+
+
+class GeGluMlp(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        hidden_features,
+        act_layer = None,
+        drop = 0.0,
+    ):
+        super().__init__()
+        norm_layer = partial(get_norm_layer('layernorm'), eps=1e-6)
+        self.norm = norm_layer(in_features)
+        self.act = nn.GELU(approximate='tanh')
+        self.w0 = nn.Linear(in_features, hidden_features)
+        self.w1 = nn.Linear(in_features, hidden_features)
+        self.w2 = nn.Linear(hidden_features, in_features)
+
+    def forward(self, x):
+        x = self.norm(x)
+        x = self.act(self.w0(x)) * self.w1(x)
+        x = self.w2(x)
+        return x
+
+class PlainAttention(nn.Module):
+    def __init__(self, in_dim, out_dim, num_heads):
+        super().__init__()
+        if in_dim > out_dim:
+            # assert in_dim // num_heads == out_dim
+            self.head_dim = in_dim // num_heads
+            self.qkv = nn.Linear(in_dim, in_dim * 3, bias=False)
+            self.q_bias = nn.Parameter(torch.zeros(in_dim))
+            self.v_bias = nn.Parameter(torch.zeros(in_dim))
+            self.register_buffer("zero_k_bias", torch.zeros(in_dim))
+        else:
+            # assert out_dim // num_heads == in_dim
+            self.head_dim = out_dim // num_heads
+            self.qkv = nn.Linear(in_dim, out_dim * 3, bias=False)
+            self.q_bias = nn.Parameter(torch.zeros(out_dim))
+            self.v_bias = nn.Parameter(torch.zeros(out_dim))
+            self.register_buffer("zero_k_bias", torch.zeros(out_dim))
+
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.num_heads = num_heads
+        self.scale = self.head_dim ** -0.5
+        self.proj = nn.Linear(out_dim, out_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, N, C = x.shape
+        qkv = F.linear(input=x, weight=self.qkv.weight, bias=torch.cat((self.q_bias, self.zero_k_bias, self.v_bias)))
+        q, k, v = qkv.reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4).unbind(0)
+
+        x = F.scaled_dot_product_attention(q, k, v)
+
+        if self.in_dim > self.out_dim:
+            x = torch.mean(x, dim=1)
+            if self.in_dim // self.num_heads != self.out_dim:
+                x = nn.functional.adaptive_avg_pool1d(x, self.out_dim)
+        else:
+            x = x.transpose(1, 2).reshape(B, N, -1)
+        x = self.proj(x)
+        return x
+
+class AttnProjection(nn.Module):
+    def __init__(self, in_dim, out_dim, num_heads, norm_layer=nn.LayerNorm, mlp_ratio=2):
+        super().__init__()
+        assert out_dim % in_dim == 0 or in_dim % out_dim == 0
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.norm1 = norm_layer(in_dim)
+        self.attn = PlainAttention(in_dim, out_dim, num_heads)
+        self.proj = nn.Linear(in_dim, out_dim)
+        self.norm3 = norm_layer(in_dim)
+
+        self.norm2 = norm_layer(out_dim)
+        hidden_dim = int(out_dim * mlp_ratio)
+        self.mlp = GeGluMlp(
+            in_features=out_dim,
+            hidden_features=hidden_dim
+        )
+
+    def forward(self, x):
+        x = self.proj(self.norm3(x)) + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
+        return x
 
 class MultiVectorQuantizer(nn.Module):
     """
@@ -118,10 +207,7 @@ class MultiVectorQuantizer(nn.Module):
             "per_codebook_stats": stats_list
         }
 
-# 适配器类，用于替换原本的 VQ_MLP 或 VQ_ViT 中的 quantizer
-# 如果你需要直接用 Multi-VQ 替换单 VQ，可以使用类似的 Wrapper
-
-class VQ_MLP_MultiHead(nn.Module):
+class VQ_MLP_MCQ(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -154,7 +240,48 @@ class VQ_MLP_MultiHead(nn.Module):
         x_vq = self.up_proj(z_q)
         return x_vq, indices, vq_loss_dict
 
+class VQ_Attn_MCQ(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+
+        self.pre_quant_proj = AttnProjection(config.input_feature_dim, config.embedding_dim, config.input_feature_dim // config.embedding_dim)
+
+        self.quantizer = MultiVectorQuantizer(
+            num_embeddings  = config.num_embeddings,
+            embedding_dim   = config.embedding_dim,
+            num_codebooks   = config.num_codebooks,
+            commitment_cost = getattr(config, "commitment_cost", 0.25),
+        )
+
+        self.post_quant_proj = AttnProjection(config.embedding_dim, config.input_feature_dim, config.input_feature_dim // config.embedding_dim)
+
+        self.up_proj = nn.Sequential(
+            nn.Linear(config.input_feature_dim, 4 * config.llm_hidden_size),
+            nn.GELU(),
+            nn.Linear(4 * config.llm_hidden_size, config.llm_hidden_size),
+        )
+
+    def forward(self, x):
+        z = self.pre_quant_proj(x)
+        z_q, indices, vq_loss_dict = self.quantizer(z)
+        x_vq = self.post_quant_proj(z_q)
+        return x_vq, indices, vq_loss_dict
+
 def get_multi_vq_quantizer(config):
-    # 这里可以根据 config 返回 MLP 或 ViT 版本的 Multi-VQ
-    # 目前先返回 MLP 版本作为示例
-    return VQ_MLP_MultiHead(config)
+    if config.type == "MLP":
+        return VQ_MLP_MCQ(config)
+    elif config.type == "Attn":
+        return VQ_Attn_MCQ(config)
+    else:
+        raise ValueError(f"Unsupported quantizer type: {config.type}")
+
+if __name__ == "__main__":
+    from omegaconf import OmegaConf
+    config = OmegaConf.load("config/vq_distill/distill_mcq_attn.yaml")
+    quantizer = get_multi_vq_quantizer(config.model.quantizer)
+    num_paras = sum(p.numel() for p in quantizer.parameters() if p.requires_grad)
+    print(f"Number of parameters: {num_paras/1e6:.2f}M")
+    x = torch.randn(2, 256, 4096)
+    x_vq, indices, vq_loss_dict = quantizer(x)
+    print(x_vq.shape, indices.shape, vq_loss_dict)

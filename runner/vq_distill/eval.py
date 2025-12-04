@@ -17,8 +17,8 @@ def img_describe():
     device = torch.device("cuda")
     dtype = torch.bfloat16
 
-    exp_dir = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1201_lfq_mlp_16_intern4B_mseloss"
-    step = 2000
+    exp_dir = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1203_multivq_mlp_4B_128_8x8192"
+    step = 40000
     config = OmegaConf.load(os.path.join(exp_dir, "config.yaml"))
     internvl_path = config.model.internvl_path
     internvl = InternVLChatModel.from_pretrained(internvl_path)
@@ -34,14 +34,29 @@ def img_describe():
     tokenizer = AutoTokenizer.from_pretrained(internvl_path, trust_remote_code=True, use_fast=False)
 
     # ---------- chat with the model ----------
-    image = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/非常厉害.png"
+    image = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/english.png"
     pixel_values = load_image(image, max_num=12).to(torch.bfloat16).cuda()
     question_prime = "<image>\n" + "Describe this image in detail."
     generation_config = dict(max_new_tokens=256, do_sample=False, pad_token_id=tokenizer.eos_token_id)
     # extract visual features from pixel values
     vit_feature = internvl.get_vit_feature(pixel_values)
-    # print(pixel_values.shape, vit_feature.shape)
-    visual_features, code = internvl.clip_quantizer(vit_feature)
+
+    vq_type = getattr(config.model.quantizer, "vq_type", "lfq")
+
+    if vq_type == "lfq":
+        visual_features, code_bin = internvl.clip_quantizer(vit_feature)
+        # 将 binary code 转换为 indices
+        if code_bin is not None:
+            D = code_bin.shape[-1]
+            powers = 2 ** torch.arange(D, device=code_bin.device)
+            code = (code_bin.long() * powers).sum(dim=-1)
+        else:
+            code = None
+    elif vq_type == "vq":
+        visual_features, code, _ = internvl.clip_quantizer(vit_feature)
+    elif vq_type == "multi_vq":
+        visual_features, code, _ = internvl.clip_quantizer(vit_feature)
+
     generation_config["visual_features"] = visual_features
     response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
     print(response_raw)
