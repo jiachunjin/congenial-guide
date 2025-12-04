@@ -265,7 +265,9 @@ class VQ_Attn_MCQ(nn.Module):
     def forward(self, x):
         z = self.pre_quant_proj(x)
         z_q, indices, vq_loss_dict = self.quantizer(z)
-        x_vq = self.post_quant_proj(z_q)
+        z_q = self.post_quant_proj(z_q)
+        x_vq = self.up_proj(z_q)
+
         return x_vq, indices, vq_loss_dict
 
 def get_multi_vq_quantizer(config):
