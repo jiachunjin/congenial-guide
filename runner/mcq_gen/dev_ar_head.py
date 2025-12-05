@@ -51,7 +51,7 @@ def load_quantizer(config):
         clip_quantizer.load_state_dict(ckpt, strict=True)
         print(f"clip_quantizer loaded from {config.ckpt_path}")
     else:
-        print("Attention !!! For development only")
+        raise ValueError("ckpt_path is required")
 
     clip_quantizer.requires_grad_(False)
 
@@ -108,6 +108,7 @@ class MyTrainer(Trainer):
                     K = self.config.model.quantizer.num_codebooks
 
                     with torch.no_grad():
+                        self.model.vision_model.eval()
                         vit_feature = self.model.get_vit_feature(x_gen)
                         _, code, _ = self.quantizer(vit_feature) # code: (B, L, K)
                         labels = code.permute(0, 2, 1).contiguous().view(-1).long()
@@ -132,16 +133,15 @@ class MyTrainer(Trainer):
                         index_embed = self.model.ar_head.codebooks[i](targets[:, i])
                         index_embeddings.append(index_embed)
                     index_embeddings = torch.stack(index_embeddings, dim=1)
-                    self.accelerator.print(f"index_embeddings.shape: {index_embeddings.shape}")
+
                     h = torch.cat((base_tokens, index_embeddings), dim=1)  # [B*L, K, C]
-                    self.accelerator.print(f"h.shape: {h.shape}")
+
                     logits = self.model.ar_head(h)
                     logits = logits.reshape(B, L, K, -1).permute(0, 2, 1, 3)  # [B, K, L, sub_vocab_size]
                     logits = logits.reshape(-1, self.config.model.ar_head.num_embeddings)
-                    self.accelerator.print(f"logits.shape: {logits.shape}")
+
                     loss_fct = torch.nn.CrossEntropyLoss()
                     loss = loss_fct(logits, labels)
-                    self.accelerator.print(f"loss: {loss.item()}")
                     
                     self.accelerator.backward(loss)
 
