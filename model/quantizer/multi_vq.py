@@ -240,6 +240,33 @@ class VQ_MLP_MCQ(nn.Module):
         x_vq = self.up_proj(z_q)
         return x_vq, indices, vq_loss_dict
 
+    @torch.no_grad()
+    def indices_to_feature(self, indices):
+        """
+        从 VQ 索引反向查找得到量化后的特征
+        
+        :param indices: (B, L, num_codebooks) 每个位置在各个 codebook 中的索引
+        :return: (B, L, llm_hidden_size) 经过 up_proj 后的特征
+        """
+        B, L, num_codebooks = indices.shape
+
+        # 从每个 codebook 查找对应的 embedding，然后拼接
+        z_q_list = []
+        for i, quantizer in enumerate(self.quantizer.quantizers):
+            # indices_chunk: (B, L)
+            indices_chunk = indices[..., i]
+            # z_q_chunk: (B, L, dim_per_codebook)
+            z_q_chunk = quantizer.codebook(indices_chunk)
+            z_q_list.append(z_q_chunk)
+
+        # 拼接得到 (B, L, embedding_dim)
+        z_q = torch.cat(z_q_list, dim=-1)
+
+        # 通过 up_proj 得到最终特征
+        x_vq = self.up_proj(z_q)
+        
+        return z_q, x_vq
+
 class VQ_Attn_MCQ(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -270,6 +297,32 @@ class VQ_Attn_MCQ(nn.Module):
 
         return x_vq, indices, vq_loss_dict
 
+    @torch.no_grad()
+    def indices_to_feature(self, indices):
+        """
+        从 VQ 索引反向查找得到量化后的特征
+        
+        :param indices: (B, L, num_codebooks) 每个位置在各个 codebook 中的索引
+        :return: (B, L, llm_hidden_size) 经过 post_quant_proj 和 up_proj 后的特征
+        """
+        B, L, num_codebooks = indices.shape
+
+        # 从每个 codebook 查找对应的 embedding，然后拼接
+        z_q_list = []
+        for i, quantizer in enumerate(self.quantizer.quantizers):
+            indices_chunk = indices[..., i]
+            z_q_chunk = quantizer.codebook(indices_chunk)
+            z_q_list.append(z_q_chunk)
+
+        # 拼接得到 (B, L, embedding_dim)
+        z_q = torch.cat(z_q_list, dim=-1)
+
+        # 通过 post_quant_proj 和 up_proj 得到最终特征
+        z_q = self.post_quant_proj(z_q)
+        x_vq = self.up_proj(z_q)
+
+        return z_q, x_vq
+
 def get_multi_vq_quantizer(config):
     if config.type == "MLP":
         return VQ_MLP_MCQ(config)
@@ -280,10 +333,14 @@ def get_multi_vq_quantizer(config):
 
 if __name__ == "__main__":
     from omegaconf import OmegaConf
-    config = OmegaConf.load("config/vq_distill/distill_mcq_attn.yaml")
+    config = OmegaConf.load("config/vq_distill/distill_multivq_2.yaml")
     quantizer = get_multi_vq_quantizer(config.model.quantizer)
     num_paras = sum(p.numel() for p in quantizer.parameters() if p.requires_grad)
     print(f"Number of parameters: {num_paras/1e6:.2f}M")
     x = torch.randn(2, 256, 4096)
     x_vq, indices, vq_loss_dict = quantizer(x)
     print(x_vq.shape, indices.shape, vq_loss_dict)
+
+    z_q, x_vq_ = quantizer.indices_to_feature(indices)
+    print(z_q.shape, x_vq.shape)
+    print((x_vq - x_vq_).abs().max())
