@@ -1,10 +1,10 @@
 model:
-  internvl_path: /home/jiachun/ckpt/OpenGVLab/InternVL3_5-1B
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
   embedding_dim: 256
-  llm_hidden_size: 1024
+  llm_hidden_size: 2560
 
   quantizer:
-    ckpt_path: null
+    ckpt_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1203_multivq_mlp_4B_256_8x2048/quantizer-vq_llava_distill-85000
     vq_type: multi_vq # [vq, lfq, multi_vq]
     type: MLP # [MLP, ViT]
     input_feature_dim: 4096
@@ -19,12 +19,11 @@ model:
     hidden_size: 1024
 
 train:
-  root: /home/jiachun/experiment
+  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
   resume_path: null
-  skip_keys: []
   global_step: 0
 
-  exp_name: &exp_name dev
+  exp_name: &exp_name mcq_gen
   proj_name: *exp_name
   output_dir: 1205_dev_ar_head
   logging_dir: logs
@@ -37,11 +36,11 @@ train:
   save_every: 5000
 
 data:
-  wds_path: [/home/jiachun/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption]
+  wds_path: [/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB]
   img_size: 448
   cfg_drop_rate: 0.0
   num_img_token: 256
   max_seq_length: 512
   buffer_size: 5
-  batch_size: 2
+  batch_size: 8
   num_workers: 8
