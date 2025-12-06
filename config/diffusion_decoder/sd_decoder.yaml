@@ -1,0 +1,42 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
+  sd3_5_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/stabilityai/stable-diffusion-3.5-medium
+  load_pretrained: true
+  context_dim: 256
+
+  quantizer:
+    ckpt_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1203_multivq_mlp_4B_256_8x2048/quantizer-vq_llava_distill-85000
+    vq_type: multi_vq # [vq, lfq, multi_vq]
+    type: MLP # [MLP, ViT]
+    input_feature_dim: 4096
+    embedding_dim: 256
+    llm_hidden_size: 2560
+    num_embeddings: 2048
+    num_codebooks: 8
+
+train:
+  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
+  resume_path: null
+  global_step: 0
+
+  exp_name: &exp_name sd_decoder
+  proj_name: *exp_name
+  output_dir: 1206_sd_decoder
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: swanlab
+
+  lr: 1e-4
+  num_iter: 1000000
+  save_every: 5000
+
+data:
+  wds_path: [/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB]
+  img_size: 448
+  cfg_drop_rate: 0.1
+  num_img_token: 256
+  max_seq_length: 512
+  buffer_size: 50000
+  batch_size: 20
+  num_workers: 8
