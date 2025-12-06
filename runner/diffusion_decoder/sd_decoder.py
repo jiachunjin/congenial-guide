@@ -166,8 +166,6 @@ class MyTrainer(Trainer):
                         x_clip_q = self.quantizer.get_z_q(x_clip)
                         x_vae = self.vae.encode(pixel_values_vae).latent_dist.sample()
 
-                    print(x_clip.shape, x_clip_q.shape, x_vae.shape)
-
                     model_input = (x_vae - self.vae.config.shift_factor) * self.vae.config.scaling_factor
                     noise = torch.randn_like(model_input)
 
