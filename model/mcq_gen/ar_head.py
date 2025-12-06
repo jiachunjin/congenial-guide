@@ -53,22 +53,10 @@ class ARHead(nn.Module):
         hidden_states = inputs_embeds
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
-        # Use a causal mask so each codebook position can only attend to
-        # previous positions (avoid label leakage that makes the task trivial).
-        causal_mask = torch.zeros(
-            (batch_size, 1, seq_len, seq_len),
-            device=hidden_states.device,
-            dtype=hidden_states.dtype,
-        )
-        causal_mask = causal_mask.masked_fill(
-            torch.triu(torch.ones((seq_len, seq_len), device=hidden_states.device), diagonal=1).bool(),
-            torch.finfo(hidden_states.dtype).min,
-        )
-        
         for decoder_layer in self.layers:
             hidden_states = decoder_layer(
                 hidden_states,
-                attention_mask      = causal_mask,
+                attention_mask      = None,
                 position_embeddings = position_embeddings,
             )
 
@@ -89,36 +77,47 @@ if __name__ == "__main__":
 
     model = model.to(device, dtype)
 
-    B, L, D = 2, 256, 1024
-    K = 8
+    x = torch.randn(2, 8, 2560).to(device, dtype)
+    hidden_states_1, logits_1 = model(x)
+    hidden_states_2, logits_2 = model(x[:, :3, :])
+    print(logits_1.shape)
+    print(logits_2.shape)
 
-    code = torch.randint(0, 2048, (B, L, K)).to(device, torch.int32)
-    code = code.permute(0, 2, 1) # (B, K, L)
+    diff = hidden_states_1[0, 2, :] - hidden_states_2[0, 2, :]
+    print(f"Max abs diff: {diff.abs().max().item():.6e}")
+    print(f"Mean abs diff: {diff.abs().mean().item():.6e}")
+    print(f"Is causal: {diff.abs().max().item() < 1e-5}")
 
-    base_tokens = torch.randn(B, L, D).to(device, dtype)
-    base_tokens = base_tokens.reshape(B * L, 1, D)
+    # B, L, D = 2, 256, 1024
+    # K = 8
 
-    targets = code.permute(0, 2, 1).reshape(B * L, K)[:, :-1] # (BxL, K-1)
-    index_embeddings = []
-    for i in range(K - 1):
-        index_embed = model.codebooks[i](targets[:, i])
-        index_embeddings.append(index_embed)
-    index_embeddings = torch.stack(index_embeddings, dim=1)
-    print(index_embeddings.shape)
-    h = torch.cat((base_tokens, index_embeddings), dim=1)  # [B*L, K, C]
-    print(h.shape)
+    # code = torch.randint(0, 2048, (B, L, K)).to(device, torch.int32)
+    # code = code.permute(0, 2, 1) # (B, K, L)
 
-    logits = model(h)
-    print(logits.shape)
-    logits = logits.reshape(B, L, K, -1).permute(0, 2, 1, 3)  # [B, K, L, sub_vocab_size]
-    print(logits.shape)
-    loss_fct = torch.nn.CrossEntropyLoss()
-    logits = logits.reshape(-1, model.config.num_embeddings)
-    print(logits.shape)
+    # base_tokens = torch.randn(B, L, D).to(device, dtype)
+    # base_tokens = base_tokens.reshape(B * L, 1, D)
 
-    # labels = code.view(-1)
-    labels = code.contiguous().view(-1).long()
-    # print(labels.shape)
-    loss = loss_fct(logits, labels)
+    # targets = code.permute(0, 2, 1).reshape(B * L, K)[:, :-1] # (BxL, K-1)
+    # index_embeddings = []
+    # for i in range(K - 1):
+    #     index_embed = model.codebooks[i](targets[:, i])
+    #     index_embeddings.append(index_embed)
+    # index_embeddings = torch.stack(index_embeddings, dim=1)
+    # print(index_embeddings.shape)
+    # h = torch.cat((base_tokens, index_embeddings), dim=1)  # [B*L, K, C]
+    # print(h.shape)
 
-    print(loss.item())
+    # logits = model(h)
+    # print(logits.shape)
+    # logits = logits.reshape(B, L, K, -1).permute(0, 2, 1, 3)  # [B, K, L, sub_vocab_size]
+    # print(logits.shape)
+    # loss_fct = torch.nn.CrossEntropyLoss()
+    # logits = logits.reshape(-1, model.config.num_embeddings)
+    # print(logits.shape)
+
+    # # labels = code.view(-1)
+    # labels = code.contiguous().view(-1).long()
+    # # print(labels.shape)
+    # loss = loss_fct(logits, labels)
+
+    # print(loss.item())

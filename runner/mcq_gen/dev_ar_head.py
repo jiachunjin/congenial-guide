@@ -113,7 +113,7 @@ class MyTrainer(Trainer):
                         self.model.vision_model.eval()
                         vit_feature = self.model.get_vit_feature(x_gen)
                         _, code, _ = self.quantizer(vit_feature) # code: (B, L, K)
-                        labels = code.permute(0, 2, 1).contiguous().view(-1).long()
+                        labels = code.view(-1).long()
                         visual_features, _ = self.quantizer.indices_to_feature(code)
                         text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
 
@@ -138,8 +138,8 @@ class MyTrainer(Trainer):
 
                     h = torch.cat((base_tokens, index_embeddings), dim=1)  # [B*L, K, C]
 
-                    logits = self.model.ar_head(h)
-                    logits = logits.reshape(B, L, K, -1).permute(0, 2, 1, 3)  # [B, K, L, sub_vocab_size]
+                    logits = self.model.ar_head(h) # BxL, K, V
+                    logits = logits.reshape(B, L, K, -1) # [B, L, K, V]
                     logits = logits.reshape(-1, self.config.model.ar_head.num_embeddings)
 
                     loss_fct = torch.nn.CrossEntropyLoss()
