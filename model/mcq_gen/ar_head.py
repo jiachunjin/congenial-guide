@@ -52,11 +52,23 @@ class ARHead(nn.Module):
         position_ids = torch.arange(seq_len, device=inputs_embeds.device).unsqueeze(0).expand(batch_size, -1)
         hidden_states = inputs_embeds
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
+
+        # Use a causal mask so each codebook position can only attend to
+        # previous positions (avoid label leakage that makes the task trivial).
+        causal_mask = torch.zeros(
+            (batch_size, 1, seq_len, seq_len),
+            device=hidden_states.device,
+            dtype=hidden_states.dtype,
+        )
+        causal_mask = causal_mask.masked_fill(
+            torch.triu(torch.ones((seq_len, seq_len), device=hidden_states.device), diagonal=1).bool(),
+            torch.finfo(hidden_states.dtype).min,
+        )
         
         for decoder_layer in self.layers:
             hidden_states = decoder_layer(
                 hidden_states,
-                attention_mask      = None,
+                attention_mask      = causal_mask,
                 position_embeddings = position_embeddings,
             )
 
