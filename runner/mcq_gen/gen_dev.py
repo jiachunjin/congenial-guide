@@ -1,0 +1,158 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+import torch
+
+
+
+@torch.inference_mode()
+def generate_and_describe():
+    from omegaconf import OmegaConf
+
+    device = torch.device("cuda:0")
+    dtype = torch.bfloat16
+    exp_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1205_dev_ar_head"
+    step = 55000
+    # config = OmegaConf.load("config/mcq_gen/dev_ar_head_g1.yaml")
+    config = OmegaConf.load(os.path.join(exp_path, f"config.yaml"))
+
+    # ---------- load internvl and quantizer ----------
+    from model.internvl.modeling_internvl_chat import InternVLChatModel
+    from runner.mcq_gen.dev_ar_head import modify_internvl
+    from model.quantizer.multi_vq import get_multi_vq_quantizer
+
+    internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
+    internvl = modify_internvl(internvl, config.model)
+    ckpt_path = os.path.join(exp_path, f"model-mcq_gen-{step}")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    internvl.load_state_dict(ckpt, strict=True)
+    internvl = internvl.to(device, dtype).eval()
+    print("load internvl done")
+
+    quantizer = get_multi_vq_quantizer(config.model.quantizer)
+    ckpt_path = os.path.join(exp_path, f"quantizer-vq_llava_distill-{step}")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    quantizer.load_state_dict(ckpt, strict=True)
+    quantizer = quantizer.to(device, dtype).eval()
+    print(f"load quantizer done")
+
+    # ---------- generate from text prompt ----------
+    from tqdm import trange
+    from transformers import AutoTokenizer
+    from util.sample import sample
+
+    IMG_START_TOKEN = "<img>"
+    tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
+    prompts = [
+        "A cute dog in a park.",
+    ]
+    cfg_scale = 1.0
+    tau = 0.9
+    topk = 2048
+    topp = 0.96
+    sampling_kwargs = {
+        "temperature": tau,
+        "top_k": topk,
+        "top_p": topp,
+        "sample_logits": True
+    }
+
+    for idx, prompt_txt in enumerate(prompts):
+        prompt = prompt_txt + IMG_START_TOKEN
+        print(prompt)
+        tokenizer_output = tokenizer(
+            [prompt],
+            padding        = True,
+            padding_side   = "left",
+            truncation     = True,
+            return_tensors = "pt",
+        )
+        input_ids = torch.LongTensor(tokenizer_output["input_ids"]).to(device)
+        text_embedding = internvl.language_model.get_input_embeddings()(input_ids)
+
+        past_key_values = None
+        pred_tokens = []
+        x_vq_list = []
+        for i in trange(256):
+            if i == 0:
+                current_input = text_embedding
+            else:
+                # 只取最后一个时间步的 embedding 用于下一轮输入
+                current_input = img_embeds[:, -1:, :]
+            outputs = internvl.language_model.model(
+                inputs_embeds   = current_input,
+                use_cache       = True,
+                past_key_values = past_key_values
+            )
+            hidden_states = outputs.last_hidden_state
+            past_key_values = outputs.past_key_values
+
+            z = hidden_states[:, -1, :]
+
+            num_codebooks = config.model.quantizer.num_codebooks
+            next_embed = z.unsqueeze(dim=1)  # (B, 1, D)
+
+            indices_arhead = []
+            for i_head in range(num_codebooks):
+                ar_next_logits = internvl.ar_head(inputs_embeds=next_embed)  # (B, K, V)
+
+                if cfg_scale > 1:
+                    raise NotImplementedError("cfg_scale > 1 is not implemented")
+                else:
+                    # 取当前 codebook 的 logits，而不是最后一个
+                    current_logits = ar_next_logits[:, i_head:i_head+1, :]  # (B, 1, V)
+                    next_token, next_prob = sample(current_logits, **sampling_kwargs)
+                indices_arhead.append(next_token)
+
+                if i_head < num_codebooks - 1:
+                    predicted_embed = internvl.ar_head.codebooks[i_head](next_token)
+                    next_embed = torch.cat([next_embed, predicted_embed], dim=1)
+
+            # 只保存当前时间步的 tokens
+            pred_tokens.append(torch.cat(indices_arhead, dim=1))  # 每一个元素: (B, K)
+            
+            # 只计算当前时间步的 z_q 和 img_embeds，避免冗余计算
+            current_multi_ids = torch.cat(indices_arhead, dim=1).unsqueeze(1)  # (B, 1, K)
+            z_q_current, x_vq_current = quantizer.indices_to_feature(current_multi_ids)  # (B, 1, embedding_dim)
+            img_embeds_current = internvl.visual_projector(z_q_current)  # (B, 1, llm_hidden_size)
+            x_vq_list.append(x_vq_current)
+            
+            # 累积 img_embeds 用于后续时间步
+            if i == 0:
+                img_embeds = img_embeds_current
+            else:
+                img_embeds = torch.cat([img_embeds, img_embeds_current], dim=1)
+
+        generated_code = torch.stack(pred_tokens, dim=1) # (B, L, K)
+        x_vq = torch.cat(x_vq_list, dim=1) # (B, L, embedding_dim)
+
+        # ---------- understand the generated code ----------
+        internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
+        internvl = internvl.to(device, dtype).eval()
+        print("load internvl done")
+        print(x_vq.shape)
+
+        question_prime = "<image>\n" + "Describe this image in detail."
+        generation_config = dict(max_new_tokens=256, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        generation_config["visual_features"] = x_vq
+        pixel_values = torch.zeros((1, 3, 448, 448)).to(device, dtype)
+        response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
+        print(response_raw)
+        
+            # print(f"Step {i}: img_embeds.shape = {img_embeds.shape}")
+            # exit(0)
+            # if cfg_scale > 1:
+            #     cond_logits, uncond_logits = torch.split(next_token_logits, len(next_token_logits) // 2, dim=0)
+            #     cfg_logits = uncond_logits + (cond_logits - uncond_logits) * cfg_scale
+            #     half_next_token, _ = sample(cfg_logits, **sampling_kwargs)
+            #     next_token = torch.cat([half_next_token, half_next_token])  # [bz,1]
+            # else:
+            #     next_token, next_prob = sample(next_token_logits, **sampling_kwargs)
+            
+            # if i_head < num_codebooks - 1:
+            #     predicted_embed = vqllm.ar_head.codebooks[i_head](next_token)
+            #     next_embed = torch.cat([next_embed, predicted_embed], dim=1)
+
+if __name__ == "__main__":
+    generate_and_describe()
