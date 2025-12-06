@@ -163,9 +163,10 @@ class MyTrainer(Trainer):
                         vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
                         vit_embeds = pixel_shuffle(vit_embeds, scale_factor=0.5)
                         x_clip = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
+                        x_clip_q = self.quantizer.get_z_q(x_clip)
                         x_vae = self.vae.encode(pixel_values_vae).latent_dist.sample()
 
-                    print(x_clip.shape, x_vae.shape)
+                    print(x_clip.shape, x_clip_q.shape, x_vae.shape)
 
                     model_input = (x_vae - self.vae.config.shift_factor) * self.vae.config.scaling_factor
                     noise = torch.randn_like(model_input)
@@ -185,7 +186,7 @@ class MyTrainer(Trainer):
                     model_pred = self.model(
                         x           = noisy_model_input,
                         t           = timesteps,
-                        context     = x_clip,
+                        context     = x_clip_q,
                         y           = None,
                     )
 
