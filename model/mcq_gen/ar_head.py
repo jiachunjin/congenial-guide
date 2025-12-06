@@ -3,6 +3,14 @@ import torch.nn as nn
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaDecoderLayer, LlamaRotaryEmbedding
 
+# 如果装上了flash_attention_2，则使用flash_attention_2，否则使用sdpa
+try:
+    import flash_attn
+    ATTN_IMPLEMENTATION = "flash_attention_2"
+    print(f"ARHead using flash_attention_2")
+except:
+    ATTN_IMPLEMENTATION = "sdpa"
+    print(f"ARHead using sdpa")
 
 class ARHead(nn.Module):
     def __init__(self, config):
@@ -24,8 +32,7 @@ class ARHead(nn.Module):
             intermediate_size   = self.config.hidden_size * 4,
             mlp_bias            = False,
             hidden_act          = "silu",
-            # attn_implementation = "flash_attention_2",
-            attn_implementation = "sdpa",
+            attn_implementation = ATTN_IMPLEMENTATION,
         )
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(llama_config, layer_idx) for layer_idx in range(3)]
