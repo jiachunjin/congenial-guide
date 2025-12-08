@@ -45,7 +45,10 @@ def top_k_top_p_filtering(
     return logits
 
 def sample(logits, temperature: float = 1.0, top_k: int = 0, top_p: float = 1.0, sample_logits=True):
-    logits = logits[:, -1, :] / max(temperature, 1e-5)
+    """
+    logits: (B*K, V)
+    """
+    logits = logits / max(temperature, 1e-5)
     if top_k > 0 or top_p < 1.0:
         logits = top_k_top_p_filtering(logits, top_k=top_k, top_p=top_p)
     probs = F.softmax(logits, dim=-1)

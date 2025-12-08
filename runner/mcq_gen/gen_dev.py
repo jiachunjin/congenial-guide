@@ -4,8 +4,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import torch
 
-
-
 @torch.inference_mode()
 def generate_and_describe(save_code=False):
     from omegaconf import OmegaConf
