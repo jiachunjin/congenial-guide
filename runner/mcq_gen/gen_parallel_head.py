@@ -13,8 +13,8 @@ def generate_and_describe(args, save_code=False):
     dtype = torch.bfloat16
     exp_dir = args.exp_dir
     step = args.step
-    # config = OmegaConf.load(os.path.join(exp_dir, f"config.yaml"))
-    config = OmegaConf.load("config/mcq_gen/dev_parallel_head_g1.yaml")
+    config = OmegaConf.load(os.path.join(exp_dir, f"config.yaml"))
+    # config = OmegaConf.load("config/mcq_gen/dev_parallel_head_g1.yaml")
 
     # ---------- load internvl and quantizer ----------
     from model.internvl.modeling_internvl_chat import InternVLChatModel
