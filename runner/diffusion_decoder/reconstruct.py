@@ -118,10 +118,10 @@ def reconstruct(args):
     ])
 
     images = [
-        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/messi.webp").convert("RGB"),
-        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/非常厉害.png").convert("RGB"),
-        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/english.png").convert("RGB"),
-        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/shapes.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/messi.webp").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/非常厉害.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/shapes.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/english.png").convert("RGB"),
     ]
     x_list = []
     for img in images:

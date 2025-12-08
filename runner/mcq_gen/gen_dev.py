@@ -7,13 +7,13 @@ import torch
 
 
 @torch.inference_mode()
-def generate_and_describe():
+def generate_and_describe(save_code=False):
     from omegaconf import OmegaConf
 
     device = torch.device("cuda:0")
     dtype = torch.bfloat16
     exp_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1205_dev_ar_head"
-    step = 55000
+    step = 200000
     # config = OmegaConf.load("config/mcq_gen/dev_ar_head_g1.yaml")
     config = OmegaConf.load(os.path.join(exp_path, f"config.yaml"))
 
@@ -184,6 +184,11 @@ def generate_and_describe():
                     img_embeds = torch.cat([img_embeds, img_embeds_current], dim=1)
 
         generated_code = torch.stack(pred_tokens, dim=1) # (B, L, K)
+        if save_code:
+            os.makedirs("asset/mcq_gen", exist_ok=True)
+            code_path = f"asset/mcq_gen/code_{prompt_txt[:10]}.pt"
+            torch.save(generated_code, code_path)
+            print(f"Code saved to {code_path}")
         x_vq = torch.cat(x_vq_list, dim=1) # (B, L, embedding_dim)
 
         # ---------- understand the generated code ----------
