@@ -80,6 +80,7 @@ class MyTrainer(Trainer):
                     x_gen = (pixel_values - imagenet_mean) / imagenet_std
                     B = x_gen.shape[0]
                     K = self.config.model.quantizer.num_codebooks
+                    V = self.config.model.head.num_embeddings
 
                     with torch.no_grad():
                         self.model.vision_model.eval()
@@ -98,18 +99,24 @@ class MyTrainer(Trainer):
                     ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :]
 
                     logits = self.model.parallel_head(visual_hidden_states) # B, L, K, V
-                    self.accelerator.print(logits.shape, code.shape)
 
-                    exit(0)
-                    # logits = logits.reshape(B, L, K, -1) # [B, L, K, V]
-                    # logits = logits.reshape(-1, self.config.model.head.num_embeddings)
+                    loss = torch.nn.functional.cross_entropy(logits.view(-1, V), code.view(-1))
 
-                    # loss = torch.nn.functional.cross_entropy(logits, labels)
-                    # self.accelerator.backward(loss)
-                    # self.optimizer.step()
-                    # self.optimizer.zero_grad()
-                    # training_done = True
+                    self.accelerator.backward(loss)
 
+                    if self.accelerator.sync_gradients:
+                        self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+
+                        self.global_step += 1
+                        self.progress_bar.update(1)
+                        logs = dict(
+                            loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                        )
+
+                        self.accelerator.log(logs, step=self.global_step)
+                        self.progress_bar.set_postfix(**logs)
 
 def main(args):
     from omegaconf import OmegaConf
