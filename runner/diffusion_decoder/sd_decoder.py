@@ -124,7 +124,9 @@ class MyTrainer(Trainer):
         noise_scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(self.config.model.sd3_5_path, subfolder="scheduler")
 
         if self.config.train.resume_path is not None:
-            raise NotImplementedError("Resume training is not supported for this script")
+            state_dict = torch.load(self.config.train.resume_path, map_location="cpu")
+            mmdit.load_state_dict(state_dict, strict=True)
+            print(f"mmdit loaded from {self.config.train.resume_path}")
 
         self.vae = vae.to(self.device, self.dtype).eval()
         self.clip = clip.to(self.device, self.dtype).eval()

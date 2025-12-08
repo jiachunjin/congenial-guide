@@ -16,8 +16,8 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: null
-  global_step: 0
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/sd_decoder/1206_sd_decoder/model-sd_decoder-40000
+  global_step: 40001
 
   exp_name: &exp_name sd_decoder
   proj_name: *exp_name
@@ -37,6 +37,6 @@ data:
   cfg_drop_rate: 0.1
   num_img_token: 256
   max_seq_length: 512
-  buffer_size: 50000
+  buffer_size: 80000
   batch_size: 90
   num_workers: 8

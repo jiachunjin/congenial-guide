@@ -142,8 +142,9 @@ class MyTrainer(Trainer):
                     logits = logits.reshape(B, L, K, -1) # [B, L, K, V]
                     logits = logits.reshape(-1, self.config.model.ar_head.num_embeddings)
 
-                    loss_fct = torch.nn.CrossEntropyLoss()
-                    loss = loss_fct(logits, labels)
+                    # loss_fct = torch.nn.CrossEntropyLoss()
+                    # loss = loss_fct(logits, labels)
+                    loss = torch.nn.functional.cross_entropy(logits, labels)
                     
                     self.accelerator.backward(loss)
 
