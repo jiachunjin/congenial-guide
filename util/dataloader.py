@@ -103,6 +103,7 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
         num_workers = config.num_workers,
         pin_memory  = True,
         collate_fn  = collation_fn,
+        drop_last   = True,
     )
 
     return dataloader
@@ -202,6 +203,7 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
         num_workers = config.num_workers,
         pin_memory  = True,
         collate_fn  = collation_fn,
+        drop_last   = True,
     )
 
     return dataloader
