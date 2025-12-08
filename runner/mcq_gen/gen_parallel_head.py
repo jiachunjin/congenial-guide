@@ -44,7 +44,10 @@ def generate_and_describe(args, save_code=False):
     IMG_START_TOKEN = "<img>"
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
+        "A stunning sunset over the ocean, the sky is painted with shades of orange and pink, the ocean is calm and the waves are gentle.",
         "A beautiful building in a city, the building is made of glass and steel, the building is tall and has a modern design.",
+        "A group of people playing soccer on a sunny day, the players are running and passing the ball, the ball is flying through the air, the players are smiling and having fun.",
+        "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair."
     ]
     cfg_scale = 1.0
     tau = 0.9
@@ -56,6 +59,7 @@ def generate_and_describe(args, save_code=False):
         "top_p": topp,
         "sample_logits": True
     }
+    all_generated_codes = []
     for idx, prompt_txt in enumerate(prompts):
         prompt = prompt_txt + IMG_START_TOKEN
         print(prompt)
@@ -109,11 +113,7 @@ def generate_and_describe(args, save_code=False):
             x_vq_list.append(x_vq_current)
 
         generated_code = torch.stack(pred_tokens, dim=1) # (B, L, K)
-        if save_code:
-            os.makedirs("asset/mcq_gen", exist_ok=True)
-            code_path = f"asset/mcq_gen/code_{prompt_txt[:10]}.pt"
-            torch.save(generated_code, code_path)
-            print(f"Code saved to {code_path}")
+        all_generated_codes.append(generated_code)
         x_vq = torch.cat(x_vq_list, dim=1) # (B, L, embedding_dim)
 
         # ---------- understand the generated code ----------
@@ -126,6 +126,13 @@ def generate_and_describe(args, save_code=False):
         pixel_values = torch.zeros((1, 3, 448, 448)).to(device, dtype)
         response_raw = internvl.chat(tokenizer, pixel_values, question_prime, generation_config)
         print(response_raw)
+    
+    if save_code and all_generated_codes:
+        os.makedirs("asset/mcq_gen", exist_ok=True)
+        all_codes = torch.cat(all_generated_codes, dim=0)  # (B, L, K) where B is number of prompts
+        code_path = "asset/mcq_gen/code_all_prompts.pt"
+        torch.save(all_codes, code_path)
+        print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 
 if __name__ == "__main__":
     import argparse

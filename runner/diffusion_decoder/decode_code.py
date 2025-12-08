@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import torch
 
 @torch.inference_mode()
-def decode_code(args, code_path):
+def decode_code(args):
     from omegaconf import OmegaConf
     from diffusers import AutoencoderKL, FlowMatchEulerDiscreteScheduler
     from PIL import Image
@@ -34,7 +34,7 @@ def decode_code(args, code_path):
     mmdit.load_state_dict(ckpt, strict=True)
     mmdit = mmdit.to(device, dtype).eval()
 
-    code = torch.load(code_path)
+    code = torch.load(args.code_path)
     z_q, _ = quantizer.indices_to_feature(code)
     print(z_q.shape)
 
