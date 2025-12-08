@@ -112,12 +112,11 @@ class MyTrainer(Trainer):
                     with torch.no_grad():
                         self.model.vision_model.eval()
                         vit_feature = self.model.get_vit_feature(x_gen)
-                        _, code, _ = self.quantizer(vit_feature) # code: (B, L, K)
+                        z_q, code = self.quantizer.get_zq_indices(vit_feature) # code: (B, L, K)
                         labels = code.view(-1).long()
-                        visual_features, _ = self.quantizer.indices_to_feature(code)
-                        text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
 
-                    visual_embedding_t2i = self.model.visual_projector(visual_features)
+                    text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
+                    visual_embedding_t2i = self.model.visual_projector(z_q)
                     joint_embedding = torch.cat([text_embedding_t2i, visual_embedding_t2i], dim=1)
                     attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
 

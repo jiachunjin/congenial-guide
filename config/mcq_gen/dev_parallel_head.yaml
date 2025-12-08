@@ -1,0 +1,19 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
+  embedding_dim: 256
+  llm_hidden_size: 2560
+
+  quantizer:
+    ckpt_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1203_multivq_mlp_4B_256_8x2048/quantizer-vq_llava_distill-85000
+    vq_type: multi_vq # [vq, lfq, multi_vq]
+    type: MLP # [MLP, ViT]
+    input_feature_dim: 4096
+    embedding_dim: 256
+    llm_hidden_size: 2560
+    num_embeddings: 2048
+    num_codebooks: 8
+
+  head:
+    num_codebooks: 8
+    num_embeddings: 2048
+    hidden_size: 2560

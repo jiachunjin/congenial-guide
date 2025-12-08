@@ -240,10 +240,10 @@ class VQ_MLP_MCQ(nn.Module):
         x_vq = self.up_proj(z_q)
         return x_vq, indices, vq_loss_dict
     
-    def get_z_q(self, x):
+    def get_zq_indices(self, x):
         z = self.down_proj(x)
-        z_q, indices, vq_loss_dict = self.quantizer(z)
-        return z_q
+        z_q, indices, _ = self.quantizer(z)
+        return z_q, indices
 
     @torch.no_grad()
     def indices_to_feature(self, indices):
