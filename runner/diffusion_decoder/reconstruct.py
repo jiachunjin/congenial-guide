@@ -122,6 +122,14 @@ def reconstruct(args):
         Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/非常厉害.png").convert("RGB"),
         Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/shapes.png").convert("RGB"),
         Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/english.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/ad.jpeg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/ad_eng.webp").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/jay.jpg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/jay2.jpeg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/book.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/norris.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/taylor.jpg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/usa.jpg").convert("RGB"),
     ]
     x_list = []
     for img in images:
@@ -143,7 +151,7 @@ def reconstruct(args):
     vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
     vit_embeds = pixel_shuffle(vit_embeds, scale_factor=0.5)
     x_clip = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
-    x_clip_q = quantizer.get_z_q(x_clip)
+    z_q, _ = quantizer.get_zq_indices(x_clip)
 
     samples = sample_sd3_5(
         transformer         = mmdit,
@@ -151,8 +159,8 @@ def reconstruct(args):
         noise_scheduler     = noise_scheduler,
         device              = device,
         dtype               = dtype,
-        context             = x_clip_q,
-        batch_size          = x_clip_q.shape[0],
+        context             = z_q,
+        batch_size          = z_q.shape[0],
         height              = 448,
         width               = 448,
         num_inference_steps = 25,
@@ -163,9 +171,21 @@ def reconstruct(args):
 
     import torchvision.utils as vutils
     os.makedirs("asset/sd_reconstruct", exist_ok=True)
-    sample_path = f"asset/sd_reconstruct/sd_reconstruct_{args.step}.png"
-    vutils.save_image(samples, sample_path, nrow=2, normalize=False)
-    print(f"Samples saved to {sample_path}")
+    
+    # 反归一化原图
+    x_denorm = x * imagenet_std + imagenet_mean
+    x_denorm = x_denorm.clamp(0, 1)
+    
+    # 将原图和重建图交替排列：(原图1，重建1，原图2，重建2，...)
+    batch_size = x_denorm.shape[0]
+    combined = torch.zeros(batch_size * 2, *x_denorm.shape[1:], device=x_denorm.device, dtype=x_denorm.dtype)
+    combined[0::2] = x_denorm  # 偶数索引位置放原图
+    combined[1::2] = samples   # 奇数索引位置放重建图
+    
+    # 保存合并后的图像，每行4列
+    combined_path = f"asset/sd_reconstruct/combined_{args.step}.png"
+    vutils.save_image(combined, combined_path, nrow=4, normalize=False)
+    print(f"Combined images (original + reconstructed) saved to {combined_path}")
 
 
 if __name__ == "__main__":

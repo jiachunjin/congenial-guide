@@ -3,9 +3,9 @@ __pycache__/
 generated_samples/
 internvl_samples/
 asset/mcq_gen/
+asset/img
+asset/sd_reconstruct
 evaluation/
-*.png
+logs/
 *.ipynb
 cache/
-*.txt
-*.webp
