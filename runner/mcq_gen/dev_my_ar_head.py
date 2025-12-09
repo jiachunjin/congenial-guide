@@ -102,11 +102,9 @@ class MyTrainer(Trainer):
                     prefix = rearrange(visual_hidden_states, "B L D -> (B L) 1 D")
                     head_visual_embeddings = self.model.ar_head._code_to_embeddings(code) # (BxL, K, D)
                     h = torch.cat((prefix, head_visual_embeddings), dim=1) # (BxL, K+1, D)
-                    self.accelerator.print(f"h.shape: {h.shape}")
 
                     logits = self.model.ar_head(h[:, :-1, :]) # (BxL, K, V)
                     logits = rearrange(logits, "(B L) K V -> B L K V", B=B, L=L)
-                    self.accelerator.print(f"logits.shape: {logits.shape}")
                     loss = torch.nn.functional.cross_entropy(logits.view(-1, V), code.view(-1))
 
                     self.accelerator.backward(loss)
