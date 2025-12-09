@@ -143,7 +143,7 @@ def generate_and_describe(args, save_code=False):
     if save_code and all_generated_codes:
         os.makedirs("asset/mcq_gen", exist_ok=True)
         all_codes = torch.cat(all_generated_codes, dim=0)  # (B, L, K) where B is number of prompts
-        code_path = f"asset/mcq_gen/code_all_prompts_{exp_name}_{step}_{cfg_scale}.pt"
+        code_path = f"asset/mcq_gen/code_all_prompts_{exp_name}_{step}.pt"
         torch.save(all_codes, code_path)
         print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 

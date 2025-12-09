@@ -57,7 +57,8 @@ def decode_code(args):
     import torchvision.utils as vutils
     os.makedirs("asset/code_decode", exist_ok=True)
     
-    code_decode_path = f"asset/code_decode/code_decode.png"
+    save_name = args.code_path.split("/")[-1]
+    code_decode_path = f"asset/code_decode/{save_name}.png"
     vutils.save_image(samples, code_decode_path, nrow=4, normalize=False)
     print(f"Code decode saved to {code_decode_path}")
 
