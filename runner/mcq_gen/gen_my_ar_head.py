@@ -6,7 +6,7 @@ import torch
 from einops import rearrange
 
 @torch.inference_mode()
-def generate_and_describe(args, save_code=False):
+def generate_and_describe(args, save_code=False, describe=True):
     from omegaconf import OmegaConf
 
     device = torch.device("cuda:0")
@@ -28,9 +28,9 @@ def generate_and_describe(args, save_code=False):
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     internvl.load_state_dict(ckpt, strict=True)
     internvl = internvl.to(device, dtype).eval()
-
-    internvl_original = InternVLChatModel.from_pretrained(config.model.internvl_path)
-    internvl_original = internvl_original.to(device, dtype).eval()
+    if describe:
+        internvl_original = InternVLChatModel.from_pretrained(config.model.internvl_path)
+        internvl_original = internvl_original.to(device, dtype).eval()
 
     print("load internvl_original done")
 
@@ -49,12 +49,18 @@ def generate_and_describe(args, save_code=False):
     IMG_START_TOKEN = "<img>"
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
-        "A stunning sunset over the ocean, the sky is painted with shades of orange and pink, the ocean is calm and the waves are gentle.",
-        "A beautiful building in a city, the building is made of glass and steel, the building is tall and has a modern design.",
-        "A group of people playing soccer on a sunny day, the players are running and passing the ball, the ball is flying through the air, the players are smiling and having fun.",
-        "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair."
+        "A man in a white shirt and black pants is playing guitar on the street, with a crowd of people watching him. The background is a city street with buildings and trees.",
+        "A floating city in the sky, with skyscrapers made of glass and clouds swirling around, a rainbow bridge connecting two islands, hyper-realistic lighting.",
+        "A giant cat lounging on top of a giant, glowing mushroom in a mystical forest at night, with bioluminescent plants and stars twinkling in the sky.",
+        "A photo of a purple backpack and a yellow unbrella.",
+        "A whiteboard with words 'Hello World' on it.",
+        "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
+        "A mother panda playing with her baby in a bamboo forest, with soft sunlight filtering through the leaves.",
+        "A lion standing on a rocky cliff overlooking the savanna at sunset, with a golden sky and a herd of wildebeest in the distance.",
+        "A woman with long black hair, wearing a red dress, standing in a sunlit field of wildflowers, with soft golden light casting gentle shadows on her face and the wind blowing her hair.",
+        "A middle-aged man in a gray suit, sitting at a desk in a modern office, surrounded by bookshelves and a large window overlooking a city skyline at dusk.",
     ]
-    cfg_scale = 1.0
+    cfg_scale = 4.0
     tau = 0.9
     topk = 2048
     topp = 0.96
@@ -133,12 +139,13 @@ def generate_and_describe(args, save_code=False):
         print(f"x_vq shape: {x_vq.shape}, all_codes shape: {all_codes.shape}")
 
     #     # ---------- understand the generated code ----------
-        question_prime = "<image>\n" + "Describe this image in detail."
-        generation_config = dict(max_new_tokens=256, do_sample=False, pad_token_id=tokenizer.eos_token_id)
-        generation_config["visual_features"] = x_vq
-        pixel_values = torch.zeros((1, 3, 448, 448)).to(device, dtype)
-        response_raw = internvl_original.chat(tokenizer, pixel_values, question_prime, generation_config)
-        print(response_raw)
+        if describe:
+            question_prime = "<image>\n" + "Describe this image in detail."
+            generation_config = dict(max_new_tokens=256, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+            generation_config["visual_features"] = x_vq
+            pixel_values = torch.zeros((1, 3, 448, 448)).to(device, dtype)
+            response_raw = internvl_original.chat(tokenizer, pixel_values, question_prime, generation_config)
+            print(response_raw)
     
     if save_code and all_generated_codes:
         os.makedirs("asset/mcq_gen", exist_ok=True)
@@ -154,4 +161,4 @@ if __name__ == "__main__":
     parser.add_argument("--step", type=int, required=True)
     args = parser.parse_args()
 
-    generate_and_describe(args, save_code=True)
+    generate_and_describe(args, save_code=True, describe=False)
