@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 from .my_ar_head_basic import DecoderLayer, RMSNorm, precompute_freqs_cis_1d
+from util.sample import sample
 
 class MyARHead(nn.Module):
     def __init__(self, config):
@@ -62,6 +63,47 @@ class MyARHead(nn.Module):
 
         return index_embeddings
 
+    def generate_from_base_token(self, base_token, cfg_scale, sampling_kwargs):
+        """
+        base_token: (B, 1, D) if cfg_scale <= 1, else (2*B, 1, D) where first B is cond, last B is uncond
+        returns: (B, K) generated code indices
+        """
+        generated_code = []
+        if cfg_scale > 1:
+            B = base_token.shape[0] // 2
+            # 分离条件和无条件状态
+            curr_state_cond = base_token[:B]  # (B, 1, D)
+            curr_state_uncond = base_token[B:]  # (B, 1, D)
+            
+            for i in range(self.config.num_codebooks):
+                # 分别计算条件和无条件的 logits
+                logits_cond = self.forward(curr_state_cond)[:, -1, :]  # (B, V)
+                logits_uncond = self.forward(curr_state_uncond)[:, -1, :]  # (B, V)
+                
+                # 应用 CFG 公式: logits = uncond + cfg_scale * (cond - uncond)
+                logits = logits_uncond + cfg_scale * (logits_cond - logits_uncond)  # (B, V)
+                
+                # 从合并后的 logits 采样
+                next_token, _ = sample(logits, **sampling_kwargs)  # next_token: (B, 1)
+                generated_code.append(next_token)
+                
+                # 条件和无条件分支使用相同的采样 token 更新状态
+                next_embeddings = self.embeddings[i](next_token)  # (B, 1, D)
+                curr_state_cond = torch.cat([curr_state_cond, next_embeddings], dim=1)
+                curr_state_uncond = torch.cat([curr_state_uncond, next_embeddings], dim=1)
+            
+            generated_code = torch.stack(generated_code, dim=1).squeeze(-1)  # (B, K)
+            return generated_code
+        else:
+            curr_state = base_token  # (B, 1, D)
+            for i in range(self.config.num_codebooks):
+                logits = self.forward(curr_state)[:, -1, :]  # (B, V)
+                next_token, _ = sample(logits, **sampling_kwargs)  # next_token: (B, 1)
+                generated_code.append(next_token)
+                next_embeddings = self.embeddings[i](next_token)  # (B, 1, D)
+                curr_state = torch.cat([curr_state, next_embeddings], dim=1)  # (B, i+2, D)
+            generated_code = torch.stack(generated_code, dim=1).squeeze(-1)  # (B, K)
+            return generated_code
 
 if __name__ == "__main__":
     from omegaconf import OmegaConf
