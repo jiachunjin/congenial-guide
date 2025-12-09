@@ -49,9 +49,11 @@ def generate_and_describe(args, save_code=False, describe=True):
     IMG_START_TOKEN = "<img>"
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
+        "a photo of a wine glass right of a hot dog",
+        "a photo of 4 televisions.",
+        "a photo of a tennis racket and a wine glass",
+        "a photo of a tv and a bicycle",
         "A man in a white shirt and black pants is playing guitar on the street, with a crowd of people watching him. The background is a city street with buildings and trees.",
-        "A floating city in the sky, with skyscrapers made of glass and clouds swirling around, a rainbow bridge connecting two islands, hyper-realistic lighting.",
-        "A giant cat lounging on top of a giant, glowing mushroom in a mystical forest at night, with bioluminescent plants and stars twinkling in the sky.",
         "A photo of a purple backpack and a yellow unbrella.",
         "A whiteboard with words 'Hello World' on it.",
         "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
@@ -60,7 +62,7 @@ def generate_and_describe(args, save_code=False, describe=True):
         "A woman with long black hair, wearing a red dress, standing in a sunlit field of wildflowers, with soft golden light casting gentle shadows on her face and the wind blowing her hair.",
         "A middle-aged man in a gray suit, sitting at a desk in a modern office, surrounded by bookshelves and a large window overlooking a city skyline at dusk.",
     ]
-    cfg_scale = 4.0
+    cfg_scale = 3.0
     tau = 0.9
     topk = 2048
     topp = 0.96
