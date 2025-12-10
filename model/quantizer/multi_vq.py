@@ -244,6 +244,57 @@ class VQ_MLP_MCQ(nn.Module):
         z = self.down_proj(x)
         z_q, indices, _ = self.quantizer(z)
         return z_q, indices
+    
+    def to_abs_code(self, indices):
+        """
+        输入的indices的index都是[0, 2048], 目标是把第i个codebook的index范围改成[i*2048, (i+1)*2048)], 并展平
+        indices: (B, L, num_codebooks)
+        return: (B, Lxnum_codebooks)
+        """
+        B, L, num_codebooks = indices.shape
+        num_embeddings = self.config.num_embeddings
+        
+        # 为每个codebook的索引添加偏移量
+        # 第i个codebook的索引范围从[0, num_embeddings)变成[i*num_embeddings, (i+1)*num_embeddings)
+        offsets = torch.arange(num_codebooks, device=indices.device) * num_embeddings
+        # offsets: (num_codebooks,) -> (1, 1, num_codebooks)
+        offsets = offsets.view(1, 1, num_codebooks)
+        
+        # 添加偏移量
+        abs_indices = indices + offsets  # (B, L, num_codebooks)
+        
+        # 展平最后两个维度: (B, L, num_codebooks) -> (B, L*num_codebooks)
+        abs_indices = abs_indices.reshape(B, L * num_codebooks)
+        
+        return abs_indices
+
+    def to_rel_code(self, indices):
+        """
+        to_abs_code 的逆变换：将绝对索引转换回相对索引
+        输入的indices是绝对索引，范围是[0, num_codebooks*num_embeddings)
+        目标是把第i个codebook的索引范围从[i*num_embeddings, (i+1)*num_embeddings)改回[0, num_embeddings)
+        indices: (B, L*num_codebooks) 绝对索引
+        return: (B, L, num_codebooks) 相对索引
+        """
+        B, flat_len = indices.shape
+        num_codebooks = self.quantizer.num_codebooks
+        num_embeddings = self.config.num_embeddings
+        
+        # 从展平的形状恢复: (B, L*num_codebooks) -> (B, L, num_codebooks)
+        L = flat_len // num_codebooks
+        assert flat_len % num_codebooks == 0, f"flat_len {flat_len} must be divisible by num_codebooks {num_codebooks}"
+        rel_indices = indices.reshape(B, L, num_codebooks)
+        
+        # 为每个codebook计算偏移量并减去
+        # 第i个codebook的索引范围从[i*num_embeddings, (i+1)*num_embeddings)变回[0, num_embeddings)
+        offsets = torch.arange(num_codebooks, device=indices.device) * num_embeddings
+        # offsets: (num_codebooks,) -> (1, 1, num_codebooks)
+        offsets = offsets.view(1, 1, num_codebooks)
+        
+        # 减去偏移量，将绝对索引转换回相对索引
+        rel_indices = rel_indices - offsets  # (B, L, num_codebooks)
+        
+        return rel_indices
 
     @torch.no_grad()
     def indices_to_feature(self, indices):
