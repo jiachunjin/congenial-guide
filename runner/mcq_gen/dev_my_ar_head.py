@@ -83,7 +83,8 @@ class MyTrainer(Trainer):
                     with torch.no_grad():
                         self.model.vision_model.eval()
                         vit_feature = self.model.get_vit_feature(x_gen)
-                        z_q, code = self.quantizer.get_zq_indices(vit_feature) # z_q: (B, L, 256), code: (B, L, K)
+                        _, code, _ = self.quantizer(vit_feature) # z_q: (B, L, 256), code: (B, L, K)
+                        z_q, _ = self.quantizer.indices_to_feature(code) # (B, L, 256)
 
                     B, L, K = code.shape
                     V = self.config.model.head.num_embeddings
