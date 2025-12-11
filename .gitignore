@@ -2,10 +2,7 @@ __pycache__/
 .sii/
 generated_samples/
 internvl_samples/
-asset/mcq_gen/
-asset/img/
-asset/sd_reconstruct/
-asset/code_decode/
+asset/
 evaluation/
 logs/
 *.ipynb

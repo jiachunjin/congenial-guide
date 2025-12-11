@@ -34,6 +34,10 @@ class MyTrainer(Trainer):
 
         quantizer = load_quantizer(self.config.model.quantizer)
         internvl = InternVLChatModel.from_pretrained(self.config.model.internvl_path)
+        
+        # 冻结 vision_model 和 language_model，防止被 AdamW 的 weight decay 修改
+        internvl.vision_model.requires_grad_(False)
+        
         internvl = modify_internvl(internvl, self.config.model)
 
         if self.config.train.resume_path is not None:

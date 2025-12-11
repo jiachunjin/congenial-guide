@@ -53,6 +53,7 @@ class MyTrainer(Trainer):
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
+        internvl.vision_model.requires_grad_(False) # this line is important, otherwise can lead to bugs !!! (Adam will change the parameters)
         self.model = internvl
         self.quantizer = quantizer.to(self.device, self.dtype).eval()
         self.tokenizer = tokenizer

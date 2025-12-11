@@ -4,6 +4,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import torch
 from tqdm import tqdm
+from util.sample import sample
+from einops import rearrange
 
 @torch.inference_mode()
 def eval_validation_loss(args):
@@ -22,7 +24,7 @@ def eval_validation_loss(args):
     step = args.step
     config = OmegaConf.load(os.path.join(exp_dir, f"config.yaml"))
     
-    val_data_tar = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption/00562.tar"
+    val_data_tar = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption/00512.tar"
 
     # 加载模型
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
@@ -112,7 +114,7 @@ def eval_validation_loss(args):
     )
     dataloader = DataLoader(
         dataset,
-        batch_size  = config.data.batch_size,
+        batch_size  = 20,
         num_workers = config.data.num_workers,
         pin_memory  = True,
         collate_fn  = collation_fn,
@@ -131,6 +133,7 @@ def eval_validation_loss(args):
 
     print("开始计算validation loss...")
     for batch_idx, batch in enumerate(tqdm(dataloader)):
+        if batch_idx > 20: break
         if batch is None:
             continue
         
@@ -146,9 +149,6 @@ def eval_validation_loss(args):
         vit_feature = internvl.get_vit_feature(x_gen)
         _, code, _ = quantizer(vit_feature)  # code: (B, L, K)
         abs_code = quantizer.to_abs_code(code)  # (B, LxK)
-
-        B, L, K = code.shape
-
         # 处理文本和视觉特征
         text_embedding_t2i = internvl.language_model.get_input_embeddings()(input_ids)
         visual_embedding_t2i = internvl.visual_embeddings(abs_code)
@@ -163,83 +163,118 @@ def eval_validation_loss(args):
         ).hidden_states[-1][:, -config.data.num_img_token-1:-1, :]  # (B, L, D)
 
         # 计算logits和loss
-        logits = internvl.head(visual_hidden_states)  # (B, LxK, K*V)
-        loss = torch.nn.functional.cross_entropy(logits.view(-1, K*V), abs_code.view(-1))
-
-        # 计算每个位置的熵
-        probs = torch.nn.functional.softmax(logits, dim=-1)  # (B, LxK, K*V)
-        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)  # (B, LxK, K*V)
-        entropies = -torch.sum(probs * log_probs, dim=-1)  # (B, LxK)
+        logits = internvl.head(visual_hidden_states) # (B, 2048， 16384)
         
-        # 按原始位置分组统计熵（每个原始位置对应K个展开位置）
-        entropies_by_pos = entropies.view(B, L, K)  # (B, L, K)
-        # 对每个原始位置，计算K个codebook位置的平均熵
-        entropies_by_pos_mean = entropies_by_pos.mean(dim=-1)  # (B, L)
-        entropies_by_pos_mean_cpu = entropies_by_pos_mean.cpu().detach()
+        # 从logits中采样得到code
+        # reshape logits to (B*L*K, K*V) for sampling
+        # logits_flat = logits.view(-1, K*V)  # (B*L*K, K*V)
         
-        # 按位置索引收集熵值
-        for pos_idx in range(L):
-            if pos_idx not in position_entropies:
-                position_entropies[pos_idx] = []
-            # 收集该位置所有batch样本的熵值
-            position_entropies[pos_idx].extend(entropies_by_pos_mean_cpu[:, pos_idx].tolist())
+        # 采样参数（参考 gen_abs_code.py）
+        tau = 1
+        topk = 2048
+        topp = 1
+        sampling_kwargs = {
+            "temperature": tau,
+            "top_k": topk,
+            "top_p": topp,
+            "sample_logits": False
+        }
+        
+        B, L, V = logits.shape
+        logits = rearrange(logits, "B L V -> (B L) V")
+        sampled_tokens, _ = sample(logits, **sampling_kwargs)  # (B*L, 1)
+        abs_code_sampled = sampled_tokens.squeeze(-1)  # (B*L,)
+        abs_code_sampled = rearrange(abs_code_sampled, "(B L) -> B L", B=B, L=L) # (B, 2048,)
+        print("abs_code_sampled", abs_code_sampled.shape)
+        print(abs_code_sampled.shape, abs_code.shape)
+        accuracy = (abs_code_sampled == abs_code).sum().item() / abs_code_sampled.numel()
+        print(f"Accuracy: {accuracy:.6f}")
+        
+        # 将abs_code转换为rel_code
+        rel_code_sampled = quantizer.to_rel_code(abs_code_sampled)  # (B, L, K)
+        print("rel_code_sampled", rel_code_sampled.shape)
+        torch.save(rel_code_sampled, f"asset/mcq_gen/val_rel_code_sampled_{step}.pt")
+        loss = torch.nn.functional.cross_entropy(logits, abs_code.view(-1))
+        print(f"Loss: {loss.item():.6f}")
 
-        # cross_entropy已经对所有元素求平均，所以loss是batch内所有样本的平均值
-        # 为了得到整个数据集的平均loss，需要按样本数加权平均
-        num_samples_in_batch = B * L * K
-        total_loss += loss.item() * num_samples_in_batch
-        total_samples += num_samples_in_batch
+        torch.save(quantizer.to_rel_code(abs_code), f"asset/mcq_gen/val_rel_code_GT_{step}.pt")
+        accuracy = (abs_code_sampled == abs_code).sum().item() / abs_code_sampled.numel()
+        print(f"Accuracy: {accuracy:.6f}")
 
-    avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
-    print(f"Validation CE Loss: {avg_loss:.6f}")
-    print(f"Total samples: {total_samples}")
+        exit(0)
     
-    # 统计每个位置的熵并绘制图表
-    if len(position_entropies) > 0:
-        import numpy as np
-        import matplotlib.pyplot as plt
+    #     # 计算每个位置的熵
+    #     probs = torch.nn.functional.softmax(logits, dim=-1)  # (B, LxK, K*V)
+    #     log_probs = torch.nn.functional.log_softmax(logits, dim=-1)  # (B, LxK, K*V)
+    #     entropies = -torch.sum(probs * log_probs, dim=-1)  # (B, LxK)
         
-        # 计算每个位置的平均熵
-        num_positions = max(position_entropies.keys()) + 1
-        position_mean_entropies = []
+    #     # 直接按位置索引收集熵值（保持L*K个位置）
+    #     entropies_cpu = entropies.cpu().detach()
+    #     LxK = entropies_cpu.shape[1]  # L*K
         
-        print(f"\n=== 每个位置的熵统计 ===")
-        for pos_idx in range(num_positions):
-            if pos_idx in position_entropies:
-                pos_entropy_values = np.array(position_entropies[pos_idx])
-                mean_entropy = np.mean(pos_entropy_values)
-                position_mean_entropies.append(mean_entropy)
-            else:
-                position_mean_entropies.append(0.0)  # 如果某个位置没有数据，设为0
+    #     for pos_idx in range(LxK):
+    #         if pos_idx not in position_entropies:
+    #             position_entropies[pos_idx] = []
+    #         # 收集该位置所有batch样本的熵值
+    #         position_entropies[pos_idx].extend(entropies_cpu[:, pos_idx].tolist())
+
+    #     # cross_entropy已经对所有元素求平均，所以loss是batch内所有样本的平均值
+    #     # 为了得到整个数据集的平均loss，需要按样本数加权平均
+    #     num_samples_in_batch = B * L * K
+    #     total_loss += loss.item() * num_samples_in_batch
+    #     total_samples += num_samples_in_batch
+
+    # avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
+    # print(f"Validation CE Loss: {avg_loss:.6f}")
+    # print(f"Total samples: {total_samples}")
+    
+    # # 统计每个位置的熵并绘制图表
+    # if len(position_entropies) > 0:
+    #     import numpy as np
+    #     import matplotlib.pyplot as plt
         
-        position_mean_entropies = np.array(position_mean_entropies)
+    #     # 计算每个位置的平均熵
+    #     num_positions = max(position_entropies.keys()) + 1
+    #     position_mean_entropies = []
         
-        # 打印统计信息
-        print(f"总位置数: {num_positions}")
-        print(f"平均熵: {np.mean(position_mean_entropies):.6f}")
-        print(f"标准差: {np.std(position_mean_entropies):.6f}")
-        print(f"最小值: {np.min(position_mean_entropies):.6f} (位置 {np.argmin(position_mean_entropies)})")
-        print(f"最大值: {np.max(position_mean_entropies):.6f} (位置 {np.argmax(position_mean_entropies)})")
+    #     print(f"\n=== 每个位置的熵统计 ===")
+    #     for pos_idx in range(num_positions):
+    #         if pos_idx in position_entropies:
+    #             pos_entropy_values = np.array(position_entropies[pos_idx])
+    #             mean_entropy = np.mean(pos_entropy_values)
+    #             position_mean_entropies.append(mean_entropy)
+    #         else:
+    #             position_mean_entropies.append(0.0)  # 如果某个位置没有数据，设为0
         
-        # 绘制图表
-        positions = np.arange(num_positions)
-        plt.figure(figsize=(12, 6))
-        plt.plot(positions, position_mean_entropies, linewidth=1.5)
-        plt.xlabel('Position Index', fontsize=12)
-        plt.ylabel('Entropy', fontsize=12)
-        plt.title(f'Entropy Distribution Across {num_positions} Visual Token Positions', fontsize=14)
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
+    #     position_mean_entropies = np.array(position_mean_entropies)
         
-        # 保存图片
-        output_path = os.path.join(exp_dir, f"entropy_by_position_step_{step}.png")
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"\n熵分布图已保存到: {output_path}")
+    #     # 打印统计信息
+    #     print(f"总位置数: {num_positions}")
+    #     print(f"平均熵: {np.mean(position_mean_entropies):.6f}")
+    #     print(f"标准差: {np.std(position_mean_entropies):.6f}")
+    #     print(f"最小值: {np.min(position_mean_entropies):.6f} (位置 {np.argmin(position_mean_entropies)})")
+    #     print(f"最大值: {np.max(position_mean_entropies):.6f} (位置 {np.argmax(position_mean_entropies)})")
         
-        # 也保存数据到文件
-        data_output_path = os.path.join(exp_dir, f"entropy_by_position_step_{step}.npy")
-        np.save(data_output_path, position_mean_entropies)
-        print(f"熵数据已保存到: {data_output_path}")
+    #     # 绘制图表（只画前128个位置）
+    #     num_plot = min(128, num_positions)
+    #     positions = np.arange(num_plot)
+    #     plt.figure(figsize=(12, 6))
+    #     plt.bar(positions, position_mean_entropies[:num_plot], width=1.0, alpha=0.7)
+    #     plt.xlabel('Position Index', fontsize=12)
+    #     plt.ylabel('Entropy', fontsize=12)
+    #     plt.title(f'Entropy Distribution Across First {num_plot} Visual Token Positions', fontsize=14)
+    #     plt.grid(True, alpha=0.3, axis='y')
+    #     plt.tight_layout()
+        
+    #     # 保存图片
+    #     output_path = os.path.join(exp_dir, f"entropy_by_position_step_{step}.png")
+    #     plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    #     print(f"\n熵分布图已保存到: {output_path}")
+        
+    #     # 也保存数据到文件
+    #     data_output_path = os.path.join(exp_dir, f"entropy_by_position_step_{step}.npy")
+    #     np.save(data_output_path, position_mean_entropies)
+    #     print(f"熵数据已保存到: {data_output_path}")
 
     return avg_loss
 
