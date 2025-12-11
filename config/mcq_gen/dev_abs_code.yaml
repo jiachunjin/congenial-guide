@@ -15,8 +15,8 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: null
-  global_step: 0
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1210_dev_abs_code/model-mcq_gen-10000
+  global_step: 10000
 
   exp_name: &exp_name mcq_gen
   proj_name: *exp_name
@@ -24,18 +24,18 @@ train:
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
-  report_to: null
+  report_to: swanlab
 
   lr: 1e-4
   num_iter: 1000000
-  save_every: 10000
+  save_every: 2000
 
 data:
-  wds_path: [/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB]
+  wds_path: [/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB]
   img_size: 448
   cfg_drop_rate: 0.1
-  num_img_token: 256
-  max_seq_length: 512
-  buffer_size: 750
-  batch_size: 20
+  num_img_token: 2048
+  max_seq_length: 2304
+  buffer_size: 75000
+  batch_size: 7
   num_workers: 8

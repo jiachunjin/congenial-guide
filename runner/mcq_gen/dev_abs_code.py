@@ -71,17 +71,64 @@ class MyTrainer(Trainer):
                     x_gen = (pixel_values - imagenet_mean) / imagenet_std
                     B = x_gen.shape[0]
                     K = self.config.model.quantizer.num_codebooks
-                    V = self.config.model.head.num_embeddings
+                    V = self.config.model.quantizer.num_embeddings
 
                     with torch.no_grad():
                         self.model.vision_model.eval()
                         vit_feature = self.model.get_vit_feature(x_gen)
-                        z_q, code = self.quantizer.get_zq_indices(vit_feature) # z_q: (B, L, 256), code: (B, L, K)
+                        _, code, _ = self.quantizer(vit_feature) # z_q: (B, L, 256), code: (B, L, K)
                         abs_code = self.quantizer.to_abs_code(code) # (B, LxK)
-                        self.accelerator.print(abs_code.shape)
-                        self.accelerator.print(abs_code[0, 0:32])
-                    exit(0)
 
+                    text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
+                    visual_embedding_t2i = self.model.visual_embeddings(abs_code)
+
+                    joint_embedding = torch.cat([text_embedding_t2i, visual_embedding_t2i], dim=1)
+                    attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
+
+                    visual_hidden_states = self.model.language_model(
+                        inputs_embeds        = joint_embedding,
+                        attention_mask       = attention_mask,
+                        output_hidden_states = True,
+                    ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :]
+
+                    logits = self.model.head(visual_hidden_states) # B, LxK, 2048x8
+
+                    loss = torch.nn.functional.cross_entropy(logits.view(-1, K*V), abs_code.view(-1))
+
+                    self.accelerator.backward(loss)
+
+                    if self.accelerator.sync_gradients:
+                        self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+
+                        self.global_step += 1
+                        self.progress_bar.update(1)
+                        logs = dict(
+                            loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                        )
+
+                        self.accelerator.log(logs, step=self.global_step)
+                        self.progress_bar.set_postfix(**logs)
+
+                        if self.global_step > 0 and self.global_step % self.config.train.save_every == 0 and self.accelerator.is_main_process:
+                            self.model.eval()
+                            state_dict = self.accelerator.unwrap_model(self.model).state_dict()
+                            save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
+                            torch.save(state_dict, save_path)
+                            print(f"Model saved to {save_path}")
+
+                        self.accelerator.wait_for_everyone()
+
+                        if self.global_step >= self.config.train.num_iter:
+                            training_done = True
+                            break
+
+            self.epoch += 1
+            self.accelerator.print(f"epoch {self.epoch}: finished")
+            self.accelerator.log({"epoch": self.epoch}, step=self.global_step)
+
+        self.accelerator.end_training()
 
 def main(args):
     from omegaconf import OmegaConf
