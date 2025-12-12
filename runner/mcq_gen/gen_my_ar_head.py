@@ -62,7 +62,7 @@ def generate_and_describe(args, save_code=False, describe=True):
         "A woman with long black hair, wearing a red dress, standing in a sunlit field of wildflowers, with soft golden light casting gentle shadows on her face and the wind blowing her hair.",
         "A middle-aged man in a gray suit, sitting at a desk in a modern office, surrounded by bookshelves and a large window overlooking a city skyline at dusk.",
     ]
-    cfg_scale = 5.0
+    cfg_scale = 3.0
     tau = 1.0
     topk = 2048
     topp = 1.0

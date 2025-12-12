@@ -58,8 +58,9 @@ class MyTrainer(Trainer):
 
         if self.config.train.resume_path is not None:
             ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=True)
-            internvl.load_state_dict(ckpt, strict=True)
-            print(f"internvl loaded from {self.config.train.resume_path}")
+            # 只加载 trainable 参数
+            internvl.load_state_dict(ckpt, strict=False)
+            print(f"Trainable parameters loaded from {self.config.train.resume_path}")
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
@@ -140,10 +141,15 @@ class MyTrainer(Trainer):
 
                         if self.global_step > 0 and self.global_step % self.config.train.save_every == 0 and self.accelerator.is_main_process:
                             self.model.eval()
-                            state_dict = self.accelerator.unwrap_model(self.model).state_dict()
+                            unwrapped_model = self.accelerator.unwrap_model(self.model)
+                            # 只保存 trainable 参数
+                            trainable_state_dict = {
+                                k: v for k, v in unwrapped_model.state_dict().items()
+                                if any(p.requires_grad for n, p in unwrapped_model.named_parameters() if n == k)
+                            }
                             save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
-                            torch.save(state_dict, save_path)
-                            print(f"Model saved to {save_path}")
+                            torch.save(trainable_state_dict, save_path)
+                            print(f"Trainable parameters saved to {save_path}")
 
                         self.accelerator.wait_for_everyone()
 
