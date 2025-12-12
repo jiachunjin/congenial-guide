@@ -28,12 +28,12 @@ def modify_internvl_to_mixture(internvl, config):
     num_params = sum(p.numel() for p in ar_head.parameters() if p.requires_grad)
     print(f"Trainable parameters in ar_head: {num_params / 1e6:.2f}M")
 
-    if config.model.mixture_mode == "moe":
+    if config.mixture_mode == "moe":
     # Change InternVL to MoE
         internvl = make_internvl_moe(internvl)
         num_params = sum(p.numel() for p in internvl.parameters() if p.requires_grad)
         print(f"Trainable parameters in internvl MoE: {num_params / 1e6:.2f}M")
-    elif config.model.mixture_mode == "mot":
+    elif config.mixture_mode == "mot":
         raise NotImplementedError("MoT is not implemented yet")
     else:
         raise ValueError(f"Invalid mixture mode: {config.model.mixture_mode}")
@@ -108,7 +108,7 @@ class MyTrainer(Trainer):
                     L_visual = visual_embedding_t2i.shape[1]
                     vision_token_mask = torch.cat([torch.zeros(B, L_txt), torch.ones(B, L_visual)], dim=1).to(self.device, dtype=self.dtype)
 
-                    visual_hidden_states = self.model(
+                    visual_hidden_states = self.model.language_model(
                         inputs_embeds        = joint_embedding,
                         attention_mask       = attention_mask,
                         vision_token_mask    = vision_token_mask,
