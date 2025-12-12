@@ -110,6 +110,7 @@ class InternVLChatModel(PreTrainedModel):
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
+            vision_token_mask: Optional[torch.Tensor] = None,  # (B, N) mask for MoE
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -148,6 +149,7 @@ class InternVLChatModel(PreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            vision_token_mask=vision_token_mask,
         )
         logits = outputs.logits
 
