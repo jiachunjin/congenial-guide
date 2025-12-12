@@ -24,7 +24,7 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1212_moe
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1212_moe/model-mcq_gen-10000
   global_step: 10001
 
   exp_name: &exp_name mcq_gen

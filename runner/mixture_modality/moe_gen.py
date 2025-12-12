@@ -118,7 +118,7 @@ def generate(args):
             else:
                 vision_token_mask = torch.ones(current_input.shape[0], current_input.shape[1], device=device, dtype=dtype)
 
-            outputs = internvl.language_model(
+            outputs = internvl.language_model.model(
                 inputs_embeds     = current_input,
                 use_cache         = True,
                 past_key_values   = past_key_values,
@@ -140,11 +140,11 @@ def generate(args):
         x_vq = torch.cat(x_vq_list, dim=1) # (B, L, embedding_dim)
         print(f"x_vq shape: {x_vq.shape}, all_codes shape: {all_codes.shape}")
     
-        os.makedirs("asset/code", exist_ok=True)
-        all_codes = torch.cat(all_generated_codes, dim=0)
-        code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}.pt"
-        torch.save(all_codes, code_path)
-        print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
+    os.makedirs("asset/code", exist_ok=True)
+    all_codes = torch.cat(all_generated_codes, dim=0)
+    code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}.pt"
+    torch.save(all_codes, code_path)
+    print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 
 if __name__ == "__main__":
     import argparse
