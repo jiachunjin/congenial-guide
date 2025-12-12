@@ -50,7 +50,7 @@ def generate_and_describe(args, save_code=False, describe=True):
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
         "a photo of a wine glass right of a hot dog",
-        "a photo of 4 televisions.",
+        "a blackboard with words 'Visual thinking without pixels'.",
         "a photo of a tennis racket and a wine glass",
         "a photo of a tv and a bicycle",
         "A man in a white shirt and black pants is playing guitar on the street, with a crowd of people watching him. The background is a city street with buildings and trees.",
@@ -62,10 +62,10 @@ def generate_and_describe(args, save_code=False, describe=True):
         "A woman with long black hair, wearing a red dress, standing in a sunlit field of wildflowers, with soft golden light casting gentle shadows on her face and the wind blowing her hair.",
         "A middle-aged man in a gray suit, sitting at a desk in a modern office, surrounded by bookshelves and a large window overlooking a city skyline at dusk.",
     ]
-    cfg_scale = 3.0
-    tau = 0.9
+    cfg_scale = 5.0
+    tau = 1.0
     topk = 2048
-    topp = 0.96
+    topp = 1.0
     sampling_kwargs = {
         "temperature": tau,
         "top_k": topk,
@@ -150,9 +150,9 @@ def generate_and_describe(args, save_code=False, describe=True):
             print(response_raw)
     
     if save_code and all_generated_codes:
-        os.makedirs("asset/mcq_gen", exist_ok=True)
+        os.makedirs("asset/code", exist_ok=True)
         all_codes = torch.cat(all_generated_codes, dim=0)  # (B, L, K) where B is number of prompts
-        code_path = f"asset/mcq_gen/code_all_prompts_{exp_name}_{step}.pt"
+        code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}.pt"
         torch.save(all_codes, code_path)
         print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 
