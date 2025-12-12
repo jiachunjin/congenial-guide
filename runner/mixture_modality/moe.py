@@ -106,7 +106,7 @@ class MyTrainer(Trainer):
 
                     L_txt = text_embedding_t2i.shape[1]
                     L_visual = visual_embedding_t2i.shape[1]
-                    vision_token_mask = torch.cat([torch.zeros(B, L_txt), torch.ones(B, L_visual)], dim=1).to(self.device, dtype=self.dtype)
+                    vision_token_mask = torch.cat([torch.zeros(B, L_txt-1), torch.ones(B, L_visual+1)], dim=1).to(self.device, dtype=self.dtype)
 
                     visual_hidden_states = self.model.language_model(
                         inputs_embeds        = joint_embedding,
