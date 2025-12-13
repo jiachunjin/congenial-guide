@@ -54,7 +54,7 @@ def generate(args):
         "A woman with long black hair, wearing a red dress, standing in a sunlit field of wildflowers, with soft golden light casting gentle shadows on her face and the wind blowing her hair.",
         "A middle-aged man in a gray suit, sitting at a desk in a modern office, surrounded by bookshelves and a large window overlooking a city skyline at dusk.",
     ]
-    cfg_scale = 3.0
+    cfg_scale = args.cfg_scale
     tau = 1.0
     topk = 2048
     topp = 1.0
@@ -114,7 +114,8 @@ def generate(args):
 
             # 构建 vision_token_mask: 第一次是文本(0)，后续是视觉(1)
             if i == 0:
-                vision_token_mask = torch.zeros(current_input.shape[0], current_input.shape[1], device=device, dtype=dtype)
+                vision_token_mask = torch.zeros(current_input.shape[0], current_input.shape[1] - 1, device=device, dtype=dtype)
+                vision_token_mask = torch.cat([vision_token_mask, torch.ones(current_input.shape[0], 1, device=device, dtype=dtype)], dim=1)
             else:
                 vision_token_mask = torch.ones(current_input.shape[0], current_input.shape[1], device=device, dtype=dtype)
 
@@ -151,6 +152,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_dir", type=str, required=True)
     parser.add_argument("--step", type=int, required=True)
+    parser.add_argument("--cfg_scale", type=float, default=3.0)
+    
     args = parser.parse_args()
 
     generate(args)

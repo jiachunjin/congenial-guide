@@ -11,6 +11,7 @@ from runner.mcq_gen.dev_ar_head import load_quantizer
 def modify_internvl_to_mixture(internvl, config):
     from model.mcq_gen.my_ar_head import MyARHead
     from model.internvl.moe import make_internvl_moe
+    from model.internvl.mot import make_internvl_mot
 
     # input projector
     visual_projector = nn.Sequential(
@@ -29,12 +30,15 @@ def modify_internvl_to_mixture(internvl, config):
     print(f"Trainable parameters in ar_head: {num_params / 1e6:.2f}M")
 
     if config.mixture_mode == "moe":
-    # Change InternVL to MoE
+        # Change InternVL to MoE
         internvl = make_internvl_moe(internvl)
         num_params = sum(p.numel() for p in internvl.parameters() if p.requires_grad)
         print(f"Trainable parameters in internvl MoE: {num_params / 1e6:.2f}M")
     elif config.mixture_mode == "mot":
-        raise NotImplementedError("MoT is not implemented yet")
+        # Change InternVL to MoT
+        internvl = make_internvl_mot(internvl)
+        num_params = sum(p.numel() for p in internvl.parameters() if p.requires_grad)
+        print(f"Trainable parameters in internvl MoT: {num_params / 1e6:.2f}M")
     else:
         raise ValueError(f"Invalid mixture mode: {config.model.mixture_mode}")
 
