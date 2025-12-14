@@ -31,7 +31,7 @@ data:
   img_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/llava665k
   ann_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/llava_v1_5_mix665k.json
   des_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/liuhaotian/LLaVA-Instruct-150K/output.json
-  batch_size: 20
+  batch_size: 22
   num_workers: 8
   max_seq_length: 640
   num_image_token: 256

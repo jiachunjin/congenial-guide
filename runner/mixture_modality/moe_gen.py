@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import torch
 from einops import rearrange
+from util.misc import disable_torch_init
 
 @torch.inference_mode()
 def generate(args):
@@ -19,6 +20,8 @@ def generate(args):
     from model.internvl.modeling_internvl_chat import InternVLChatModel
     from runner.mixture_modality.moe import modify_internvl_to_mixture
     from model.quantizer.multi_vq import get_multi_vq_quantizer
+
+    disable_torch_init()
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl_to_mixture(internvl, config.model)

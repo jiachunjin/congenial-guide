@@ -8,6 +8,9 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 from util.dataloader_llava import load_image
 from tqdm import tqdm
+from util.misc import disable_torch_init
+
+disable_torch_init()
 
 @torch.no_grad()
 def img_describe():
