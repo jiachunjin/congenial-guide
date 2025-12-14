@@ -1,4 +1,7 @@
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 import json
 import math
 from torch.utils.data import Dataset, DataLoader
@@ -33,9 +36,9 @@ def get_chunk(lst, n, k):
     return chunks[k]
 
 
-question_file = ""
-answers_file  = ""
-image_folder = ""
+question_file = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/vqav2/llava_vqav2_mscoco_test-dev2015.jsonl"
+answers_file  = "./test_vqa.jsonl"
+image_folder = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/dataset/vqav2/test2015"
 questions = [json.loads(q) for q in open(os.path.expanduser(question_file), "r")]
 # questions = get_chunk(questions, num_chunks, chunk_idx)
 answers_file = os.path.expanduser(answers_file)
