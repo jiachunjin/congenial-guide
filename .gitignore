@@ -3,7 +3,7 @@ __pycache__/
 generated_samples/
 internvl_samples/
 asset/
-evaluation/
+evaluation/understanding/mme
 logs/
 *.ipynb
 cache/
