@@ -1,32 +1,33 @@
 #!/bin/bash
 
 # ============ NCCL 通信优化 ============
-# 如果有 InfiniBand/RoCE，启用 IB（注释掉 NCCL_IB_DISABLE）
-# export NCCL_IB_DISABLE=1  # 仅在没有 IB 时启用
+# 指定网络接口（重要！根据你的集群修改）
+# 运行 `ip link show` 查看可用网卡，选择高速网卡
+export NCCL_SOCKET_IFNAME=eth0  # 改成你的高速网卡名，如 ib0, bond0, eth0
 
-# IB/RoCE 优化（如果有高速网络）
-export NCCL_IB_DISABLE=0
-export NCCL_IB_GID_INDEX=3
-export NCCL_IB_TIMEOUT=23
-export NCCL_IB_RETRY_CNT=7
+# 如果没有 InfiniBand，使用 TCP
+export NCCL_IB_DISABLE=1
+# 如果有 InfiniBand，注释上一行，取消下面的注释
+# export NCCL_IB_DISABLE=0
+# export NCCL_IB_GID_INDEX=3
+# export NCCL_IB_TIMEOUT=23
+# export NCCL_IB_RETRY_CNT=7
 
-# GPU Direct RDMA
-export NCCL_GDR_LEVEL=5
-export NCCL_NET_GDR_LEVEL=5
+# TCP Socket 优化（无 IB 时重要）
+export NCCL_SOCKET_NTHREADS=8
+export NCCL_NSOCKS_PERTHREAD=8
 
-# 通信算法优化（让 NCCL 自动选择，不要强制指定）
-# export NCCL_ALGO=Tree
-# export NCCL_PROTO=Simple
-
-# 缓冲区和异步优化
-export NCCL_BUFFSIZE=8388608
+# 缓冲区优化
+export NCCL_BUFFSIZE=16777216  # 16MB，增大缓冲区
 export NCCL_NTHREADS=512
-export NCCL_NSOCKS_PERTHREAD=4
-export NCCL_SOCKET_NTHREADS=4
 
-# 调试信息（调试时启用，生产时注释掉）
-# export NCCL_DEBUG=INFO
-# export NCCL_DEBUG_SUBSYS=ALL
+# P2P 和 SHM 优化
+export NCCL_P2P_LEVEL=NVL      # 节点内使用 NVLink（如果有）
+export NCCL_SHM_DISABLE=0      # 启用共享内存
+
+# 调试信息（先启用看看通信情况，确认无问题后注释掉）
+export NCCL_DEBUG=WARN
+# export NCCL_DEBUG=INFO  # 更详细的信息
 
 # 多节点分布式训练环境变量
 export MASTER_ADDR=252.1.82.59
