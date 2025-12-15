@@ -22,10 +22,6 @@ deepspeed_config:
 
 mixed_precision: bf16
 downcast_bf16: 'no'
-
-num_machines: 4
-num_processes: 32
-
 main_training_function: main
 enable_cpu_affinity: false
 rdzv_backend: static

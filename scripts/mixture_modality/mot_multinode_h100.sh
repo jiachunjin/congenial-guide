@@ -1,6 +1,5 @@
 #!/bin/bash
-export NCCL_GDR_LEVEL=4
-export NCCL_IB_DISABLE=1
+export NCCL_IB_DISABLE=0
 
 # 设置每个节点的进程数，默认为8（如果未设置环境变量）
 PET_NPROC_PER_NODE=${PET_NPROC_PER_NODE:-8}
@@ -29,26 +28,3 @@ accelerate launch \
   --config_file config/accelerate_config/multi_node.yaml \
   runner/mixture_modality/moe.py \
   --config config/mixture_modality/mot_multi_node_h100.yaml
-
-
-# NCCL_IB_QPS_PER_CONNECTION
-# NCCL_GDR_LEVEL
-# NCCL_IB_PCI_RELAXED_ORDERING
-# NCCL_IB_TC
-# NCCL_NVLS_ENABLE
-# NCCL_IB_GID_INDEX
-# GLOO_SOCKET_IFNAME
-# NCCL_SOCKET_IFNAME
-# NCCL_DEBUG
-# NCCL_IB_TIMEOUT
-# NCCL_IB_RETRY_CNT
-# NCCL_IB_HCA
-# MASTER_PORT
-# MASTER_ADDR
-# PET_MASTER_PORT
-# PET_MASTER_ADDR
-# WORLD_SIZE
-# RANK
-# PET_NPROC_PER_NODE
-# PET_NNODES
-# PET_NODE_RANK
