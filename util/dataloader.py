@@ -99,11 +99,13 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
     )
     dataloader = DataLoader(
         dataset,
-        batch_size  = config.batch_size,
-        num_workers = config.num_workers,
-        pin_memory  = True,
-        collate_fn  = collation_fn,
-        drop_last   = True,
+        batch_size         = config.batch_size,
+        num_workers        = config.num_workers,
+        pin_memory         = True,
+        collate_fn         = collation_fn,
+        drop_last          = True,
+        prefetch_factor    = 4,              # 预取更多 batch
+        persistent_workers = True if config.num_workers > 0 else False,  # 保持 worker 进程
     )
 
     return dataloader
@@ -199,11 +201,13 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
     )
     dataloader = DataLoader(
         dataset,
-        batch_size  = config.batch_size,
-        num_workers = config.num_workers,
-        pin_memory  = True,
-        collate_fn  = collation_fn,
-        drop_last   = True,
+        batch_size         = config.batch_size,
+        num_workers        = config.num_workers,
+        pin_memory         = True,
+        collate_fn         = collation_fn,
+        drop_last          = True,
+        prefetch_factor    = 4,              # 预取更多 batch
+        persistent_workers = True if config.num_workers > 0 else False,  # 保持 worker 进程
     )
 
     return dataloader

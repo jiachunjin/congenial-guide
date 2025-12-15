@@ -84,19 +84,22 @@ class MyTrainer(Trainer):
         imagenet_std = torch.tensor(IMAGENET_STD, device=self.accelerator.device, dtype=self.dtype).view(1, 3, 1, 1)
         training_done = False
 
+        # vision_model 始终是 eval 模式，只需设置一次
+        self.model.vision_model.eval()
+        
         while not training_done:
             for batch in self.dataloader:
                 with self.accelerator.accumulate(self.model):
                     self.model.train()
+                    self.model.vision_model.eval()  # 确保 vision_model 保持 eval
 
-                    pixel_values = batch["pixel_values"].to(self.device, self.dtype)
-                    input_ids = batch["input_ids"].to(self.device)
-                    attention_mask = batch["attention_mask"].to(self.device)
+                    pixel_values = batch["pixel_values"].to(self.device, self.dtype, non_blocking=True)
+                    input_ids = batch["input_ids"].to(self.device, non_blocking=True)
+                    attention_mask = batch["attention_mask"].to(self.device, non_blocking=True)
 
                     x_gen = (pixel_values - imagenet_mean) / imagenet_std
 
                     with torch.no_grad():
-                        self.model.vision_model.eval()
                         vit_feature = self.model.get_vit_feature(x_gen)
                         z_q, code = self.quantizer.get_zq_indices(vit_feature)
 
@@ -136,26 +139,32 @@ class MyTrainer(Trainer):
 
                         self.global_step += 1
                         self.progress_bar.update(1)
-                        logs = dict(
-                            loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
-                        )
+                        
+                        # 只在日志步骤做 gather，避免每步同步
+                        if self.global_step % 10 == 0:
+                            logs = dict(
+                                loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                            )
+                            self.accelerator.log(logs, step=self.global_step)
+                            self.progress_bar.set_postfix(**logs)
+                        else:
+                            # 只用本地 loss 更新进度条，不做跨节点通信
+                            self.progress_bar.set_postfix(loss_CE=loss.detach().item())
 
-                        self.accelerator.log(logs, step=self.global_step)
-                        self.progress_bar.set_postfix(**logs)
-
-                        if self.global_step > 0 and self.global_step % self.config.train.save_every == 0 and self.accelerator.is_main_process:
-                            self.model.eval()
-                            unwrapped_model = self.accelerator.unwrap_model(self.model)
-                            # 只保存 trainable 参数
-                            trainable_state_dict = {
-                                k: v for k, v in unwrapped_model.state_dict().items()
-                                if any(p.requires_grad for n, p in unwrapped_model.named_parameters() if n == k)
-                            }
-                            save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
-                            torch.save(trainable_state_dict, save_path)
-                            print(f"Trainable parameters saved to {save_path}")
-
-                        self.accelerator.wait_for_everyone()
+                        if self.global_step > 0 and self.global_step % self.config.train.save_every == 0:
+                            # 保存前同步一次，确保所有进程都到达这里
+                            self.accelerator.wait_for_everyone()
+                            if self.accelerator.is_main_process:
+                                self.model.eval()
+                                unwrapped_model = self.accelerator.unwrap_model(self.model)
+                                # 只保存 trainable 参数
+                                trainable_state_dict = {
+                                    k: v for k, v in unwrapped_model.state_dict().items()
+                                    if any(p.requires_grad for n, p in unwrapped_model.named_parameters() if n == k)
+                                }
+                                save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
+                                torch.save(trainable_state_dict, save_path)
+                                print(f"Trainable parameters saved to {save_path}")
 
                         if self.global_step >= self.config.train.num_iter:
                             training_done = True
