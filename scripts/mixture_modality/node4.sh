@@ -14,9 +14,9 @@ export NCCL_IB_RETRY_CNT=7
 export NCCL_GDR_LEVEL=5
 export NCCL_NET_GDR_LEVEL=5
 
-# 通信算法优化
-export NCCL_ALGO=Tree
-export NCCL_PROTO=Simple
+# 通信算法优化（让 NCCL 自动选择，不要强制指定）
+# export NCCL_ALGO=Tree
+# export NCCL_PROTO=Simple
 
 # 缓冲区和异步优化
 export NCCL_BUFFSIZE=8388608
