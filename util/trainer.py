@@ -49,6 +49,12 @@ class Trainer:
         self.accelerator.print(f"Learnable parameters: {sum(p.numel() for p in self.params_to_learn if p.requires_grad) / 1e6} M")
         self.accelerator.print(f"Accelerator mixed precision: {self.accelerator.mixed_precision}")
         self.accelerator.print("=" * 80)
+        print(
+            "rank:", self.accelerator.process_index,
+            "local_rank:", self.accelerator.local_process_index,
+            "world:", self.accelerator.num_processes,
+        )
+        print("=" * 80)
 
     def _load_models(self):
         raise NotImplementedError
