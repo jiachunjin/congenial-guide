@@ -14,4 +14,4 @@ accelerate launch \
   --num_machines ${PET_NNODES} \
   --config_file config/accelerate_config/multi_node.yaml \
   runner/mixture_modality/moe.py \
-  --config config/mixture_modality/mot_multi_node.yaml
+  --config config/mixture_modality/mot_multi_node_h100.yaml

@@ -29,7 +29,7 @@ train:
 
   exp_name: &exp_name mcq_gen
   proj_name: *exp_name
-  output_dir: 1213_mot_multinode
+  output_dir: 1213_mot_multinode_h100
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
@@ -46,5 +46,5 @@ data:
   num_img_token: 256
   max_seq_length: 512
   buffer_size: 100000
-  batch_size: 19
+  batch_size: 8
   num_workers: 8

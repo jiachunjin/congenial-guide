@@ -5,5 +5,6 @@ internvl_samples/
 asset/
 evaluation/
 logs/
-*.ipynb
 cache/
+*.ipynb
+.deepspeed_env
