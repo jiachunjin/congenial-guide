@@ -10,6 +10,12 @@ deepspeed_config:
   zero3_init_flag: false
   zero_stage: 2
   deepspeed_multinode_launcher: standard
+  # 通信优化
+  overlap_comm: true
+  reduce_bucket_size: 5e8
+  stage3_prefetch_bucket_size: 5e8
+  stage3_param_persistence_threshold: 1e6
+  contiguous_gradients: true
 
 mixed_precision: bf16
 downcast_bf16: 'no'
