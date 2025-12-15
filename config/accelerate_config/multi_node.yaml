@@ -9,9 +9,13 @@ deepspeed_config:
   offload_param_device: none
   zero3_init_flag: false
   zero_stage: 2
+  deepspeed_multinode_launcher: standard
 
 mixed_precision: bf16
 downcast_bf16: 'no'
+
+num_machines: 4
+num_processes: 32
 
 main_training_function: main
 enable_cpu_affinity: false
