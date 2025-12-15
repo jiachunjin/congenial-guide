@@ -50,9 +50,9 @@ class Trainer:
         self.accelerator.print(f"Accelerator mixed precision: {self.accelerator.mixed_precision}")
         self.accelerator.print("=" * 80)
         print(
-            "rank:", self.accelerator.process_index,
-            "local_rank:", self.accelerator.local_process_index,
-            "world:", self.accelerator.num_processes,
+            "rank:", self.accelerator.state.process_index,
+            "local_rank:", self.accelerator.state.local_process_index,
+            "world:", self.accelerator.state.num_processes,
         )
         print("=" * 80)
 

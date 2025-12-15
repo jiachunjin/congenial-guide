@@ -17,9 +17,9 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
     print(f"Found tar files: {len(urls)}")
 
     def nodesplitter(src, group=None):
-        if accelerator.num_processes > 1:
-            rank = accelerator.process_index
-            world_size = accelerator.num_processes
+        if accelerator.state.num_processes > 1:
+            rank = accelerator.state.process_index
+            world_size = accelerator.state.num_processes
 
             return itertools.islice(src, rank, None, world_size)
         return src
@@ -121,9 +121,9 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
     print(f"Found tar files: {len(urls)}")
 
     def nodesplitter(src, group=None):
-        if accelerator.num_processes > 1:
-            rank = accelerator.process_index
-            world_size = accelerator.num_processes
+        if accelerator.state.num_processes > 1:
+            rank = accelerator.state.process_index
+            world_size = accelerator.state.num_processes
 
             return itertools.islice(src, rank, None, world_size)
         return src
