@@ -81,6 +81,11 @@ class Trainer:
             num_warmup_steps=warmup_steps,
             num_training_steps=self.config.train.num_iter,
         )
+        
+        # Resume 时：让 scheduler 快进到正确的步数
+        if self.global_step > 0:
+            self.scheduler.last_epoch = self.global_step
+            print(f"Scheduler resumed to step {self.global_step}, lr = {self.scheduler.get_last_lr()[0]:.2e}")
 
     def train(self):
         raise NotImplementedError
