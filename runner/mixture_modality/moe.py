@@ -141,15 +141,15 @@ class MyTrainer(Trainer):
                         self.progress_bar.update(1)
                         
                         # 只在日志步骤做 gather，避免每步同步
-                        if self.global_step % 10 == 0:
-                            logs = dict(
-                                loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
-                            )
-                            self.accelerator.log(logs, step=self.global_step)
-                            self.progress_bar.set_postfix(**logs)
-                        else:
-                            # 只用本地 loss 更新进度条，不做跨节点通信
-                            self.progress_bar.set_postfix(loss_CE=loss.detach().item())
+                        # if self.global_step % 10 == 0:
+                        logs = dict(
+                            loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                        )
+                        self.accelerator.log(logs, step=self.global_step)
+                        self.progress_bar.set_postfix(**logs)
+                        # else:
+                        #     # 只用本地 loss 更新进度条，不做跨节点通信
+                        #     self.progress_bar.set_postfix(loss_CE=loss.detach().item())
 
                         if self.global_step > 0 and self.global_step % self.config.train.save_every == 0:
                             # 保存前同步一次，确保所有进程都到达这里

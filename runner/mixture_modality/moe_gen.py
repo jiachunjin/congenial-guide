@@ -45,17 +45,17 @@ def generate(args):
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
         "a photo of a wine glass right of a hot dog",
-        "a blackboard with words 'Visual thinking without pixels'.",
+        "a photo of 4 TVs in a line",
         "a photo of a tennis racket and a wine glass",
         "a photo of a tv and a bicycle",
         "A man in a white shirt and black pants is playing guitar on the street, with a crowd of people watching him. The background is a city street with buildings and trees.",
         "A photo of a purple backpack and a yellow unbrella.",
-        "A whiteboard with words 'Hello World' on it.",
+        "A whiteboard with words 'Visual thinking without pixels' on it.",
         "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
-        "A mother panda playing with her baby in a bamboo forest, with soft sunlight filtering through the leaves.",
-        "A lion standing on a rocky cliff overlooking the savanna at sunset, with a golden sky and a herd of wildebeest in the distance.",
-        "A woman with long black hair, wearing a red dress, standing in a sunlit field of wildflowers, with soft golden light casting gentle shadows on her face and the wind blowing her hair.",
-        "A middle-aged man in a gray suit, sitting at a desk in a modern office, surrounded by bookshelves and a large window overlooking a city skyline at dusk.",
+        "a photo of a blue cell phone and a green apple",
+        "a photo of a pizza below a computer keyboard",
+        "a photo of two clocks",
+        "a photo of a blue toilet",
     ]
     cfg_scale = args.cfg_scale
     tau = 1.0
