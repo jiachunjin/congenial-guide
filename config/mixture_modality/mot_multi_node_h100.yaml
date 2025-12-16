@@ -32,11 +32,12 @@ train:
   output_dir: 1213_mot_multinode_h100
   logging_dir: logs
   mixed_precision: bf16
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 4
   report_to: swanlab
 
   lr: 5e-5
-  num_iter: 1000000
+  warmup_steps: 100
+  num_iter: 400000
   save_every: 2500
 
 data:

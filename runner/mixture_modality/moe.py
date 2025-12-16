@@ -77,7 +77,7 @@ class MyTrainer(Trainer):
         self.dataloader = get_blip3o_dataloader(self.config.data, self.tokenizer, self.accelerator)
 
     def train(self):
-        self.model, self.optimizer = self.accelerator.prepare(self.model, self.optimizer)
+        self.model, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.optimizer, self.scheduler)
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)
         imagenet_mean = torch.tensor(IMAGENET_MEAN, device=self.accelerator.device, dtype=self.dtype).view(1, 3, 1, 1)
@@ -135,6 +135,7 @@ class MyTrainer(Trainer):
                     if self.accelerator.sync_gradients:
                         self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
                         self.optimizer.step()
+                        self.scheduler.step()
                         self.optimizer.zero_grad()
 
                         self.global_step += 1
@@ -144,6 +145,7 @@ class MyTrainer(Trainer):
                         # if self.global_step % 10 == 0:
                         logs = dict(
                             loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                            lr = self.scheduler.get_last_lr()[0],
                         )
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
