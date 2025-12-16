@@ -35,7 +35,7 @@ train:
   gradient_accumulation_steps: 4
   report_to: swanlab
 
-  lr: 5e-5
+  lr: 3e-5
   warmup_steps: 100
   num_iter: 400000
   save_every: 2500
