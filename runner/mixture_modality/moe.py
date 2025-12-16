@@ -78,6 +78,12 @@ class MyTrainer(Trainer):
 
     def train(self):
         self.model, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.optimizer, self.scheduler)
+        
+        # Resume 时：在 prepare 之后设置 scheduler 的步数（prepare 可能会重置状态）
+        if self.global_step > 0:
+            self.scheduler.scheduler.last_epoch = self.global_step  # scheduler 被 AcceleratedScheduler 包装了
+            self.accelerator.print(f"Scheduler resumed to step {self.global_step}, lr = {self.scheduler.get_last_lr()[0]:.2e}")
+        
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)
         imagenet_mean = torch.tensor(IMAGENET_MEAN, device=self.accelerator.device, dtype=self.dtype).view(1, 3, 1, 1)
