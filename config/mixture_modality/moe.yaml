@@ -24,19 +24,20 @@ model:
 
 train:
   root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
-  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1212_moe/model-mcq_gen-10000
-  global_step: 10001
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1213_mot_multinode_h100/model-mcq_gen-160000
+  global_step: 160001
 
   exp_name: &exp_name mcq_gen
   proj_name: *exp_name
-  output_dir: 1212_moe
+  output_dir: tmp
   logging_dir: logs
   mixed_precision: bf16
-  gradient_accumulation_steps: 1
+  gradient_accumulation_steps: 8
   report_to: swanlab
 
-  lr: 1e-4
-  num_iter: 1000000
+  lr: 1e-5
+  warmup_steps: 100
+  num_iter: 2000000
   save_every: 5000
 
 data:
@@ -45,6 +46,6 @@ data:
   cfg_drop_rate: 0.1
   num_img_token: 256
   max_seq_length: 512
-  buffer_size: 100000
-  batch_size: 21
-  num_workers: 8
+  buffer_size: 250000
+  batch_size: 16
+  num_workers: 64

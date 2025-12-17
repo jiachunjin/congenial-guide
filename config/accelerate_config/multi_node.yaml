@@ -3,7 +3,7 @@ debug: false
 distributed_type: DEEPSPEED
 
 deepspeed_config:
-  gradient_accumulation_steps: 1  # 增加到4，减少通信频率
+  gradient_accumulation_steps: 2  # 增加到4，减少通信频率
   gradient_clipping: 1.0
   offload_optimizer_device: none
   offload_param_device: none
@@ -18,7 +18,6 @@ deepspeed_config:
   stage3_param_persistence_threshold: 1e6
   contiguous_gradients: true
   # 通信后端优化
-  communication_data_type: bf16     # 使用 bf16 减少通信量
 
 mixed_precision: bf16
 downcast_bf16: 'no'
