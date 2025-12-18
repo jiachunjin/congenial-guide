@@ -14,6 +14,8 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
     for path in config.wds_path:
         urls.extend(glob.glob(os.path.join(path, "*.tar")))
 
+    random.shuffle(urls)
+
     print(f"Found tar files: {len(urls)}")
 
     def nodesplitter(src, group=None):
@@ -92,7 +94,7 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
         nodesplitter,
         wds.split_by_worker,
         wds.tarfile_to_samples(handler=wds.warn_and_continue), 
-        wds.shuffle(config.buffer_size),
+        wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
         wds.decode("pil", handler=wds.ignore_and_continue),
         wds.to_tuple("jpg", "txt"),
         wds.map_tuple(preprocess_image, preprocess_text)
@@ -119,6 +121,8 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
     urls = []
     for path in config.wds_path:
         urls.extend(glob.glob(os.path.join(path, "*.tar")))
+
+    random.shuffle(urls)
 
     print(f"Found tar files: {len(urls)}")
 
@@ -194,7 +198,7 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
         nodesplitter,
         wds.split_by_worker,
         wds.tarfile_to_samples(handler=wds.warn_and_continue), 
-        wds.shuffle(config.buffer_size),
+        wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
         wds.decode("pil", handler=wds.ignore_and_continue),
         wds.to_tuple("jpg", "txt"),
         wds.map_tuple(preprocess_image, preprocess_text)

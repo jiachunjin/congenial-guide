@@ -1,0 +1,51 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
+  embedding_dim: 256
+  llm_hidden_size: 2560
+  mixture_mode: mot # [moe, mot]
+
+  quantizer:
+    ckpt_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1203_multivq_mlp_4B_256_8x2048/quantizer-vq_llava_distill-85000
+    vq_type: multi_vq # [vq, lfq, multi_vq]
+    type: MLP # [MLP, ViT]
+    input_feature_dim: 4096
+    embedding_dim: 256
+    llm_hidden_size: 2560
+    num_embeddings: 2048
+    num_codebooks: 8
+
+  head:
+    num_codebooks: 8
+    num_layers: 3
+    hidden_size: 2560
+    num_embeddings: 2048
+    num_heads: 32
+    mlp_ratio: 4.0
+
+train:
+  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
+  resume_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/mcq_gen/1218_h100_debug/model-mcq_gen-70000
+  global_step: 0
+
+  exp_name: &exp_name mcq_gen
+  proj_name: *exp_name
+  output_dir: 1218_h100_debug
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: swanlab
+
+  lr: 1e-5
+  warmup_steps: 2000
+  num_iter: 6000000
+  save_every: 5000
+
+data:
+  wds_path: [/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB]
+  img_size: 448
+  cfg_drop_rate: 0.1
+  num_img_token: 256
+  max_seq_length: 512
+  buffer_size: 100000
+  batch_size: 8
+  num_workers: 8

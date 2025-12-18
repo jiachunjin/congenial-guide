@@ -45,7 +45,7 @@ def generate(args):
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
         "a photo of a wine glass right of a hot dog",
-        "a photo of 4 TVs in a line",
+        "a photo of three TVs in a line",
         "a photo of a tennis racket and a wine glass",
         "a photo of a tv and a bicycle",
         "A man in a white shirt and black pants is playing guitar on the street, with a crowd of people watching him. The background is a city street with buildings and trees.",
@@ -55,12 +55,12 @@ def generate(args):
         "a photo of a blue cell phone and a green apple",
         "a photo of a pizza below a computer keyboard",
         "a photo of two clocks",
-        "a photo of a blue toilet",
+        "a photo of a blue banana",
     ]
     cfg_scale = args.cfg_scale
-    tau = 1.0
-    topk = 2048
-    topp = 1.0
+    tau = 0.7
+    topk = 50
+    topp = 0.9
     sampling_kwargs = {
         "temperature": tau,
         "top_k": topk,
@@ -146,7 +146,7 @@ def generate(args):
     
     os.makedirs("asset/code", exist_ok=True)
     all_codes = torch.cat(all_generated_codes, dim=0)
-    code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}.pt"
+    code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}.pt"
     torch.save(all_codes, code_path)
     print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 
