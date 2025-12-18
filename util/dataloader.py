@@ -85,9 +85,8 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
 
     # 使用 ResampledShards: 每个进程独立随机采样 shard，不再静态分配
     # 这样每个进程都能看到所有数据集的数据，且每次采样都不同
-    # nshards 设为 None 表示无限采样（适合大规模训练）
     dataset = wds.DataPipeline(
-        wds.ResampledShards(urls, nshards=None, seed=rank),  # 每个rank用不同seed
+        wds.ResampledShards(urls, seed=rank),  # 每个rank用不同seed，无限采样
         wds.split_by_worker,
         wds.tarfile_to_samples(handler=wds.warn_and_continue), 
         wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
@@ -185,7 +184,7 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
 
     # 使用 ResampledShards: 每个进程独立随机采样 shard，不再静态分配
     dataset = wds.DataPipeline(
-        wds.ResampledShards(urls, nshards=None, seed=rank),  # 每个rank用不同seed
+        wds.ResampledShards(urls, seed=rank),  # 每个rank用不同seed，无限采样
         wds.split_by_worker,
         wds.tarfile_to_samples(handler=wds.warn_and_continue), 
         wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
