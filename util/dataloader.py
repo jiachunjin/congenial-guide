@@ -2,7 +2,6 @@ import os
 import random
 from torch.utils.data import DataLoader
 import torch
-import itertools
 
 
 def get_blip3o_dataloader(config, tokenizer, accelerator):
@@ -14,17 +13,12 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
     for path in config.wds_path:
         urls.extend(glob.glob(os.path.join(path, "*.tar")))
 
-    random.Random(42).shuffle(urls)
+    # 打乱 urls，但不使用固定 seed，让每个进程有不同的随机性
+    random.shuffle(urls)
 
-    print(f"Found tar files: {len(urls)}")
-
-    def nodesplitter(src, group=None):
-        if accelerator.state.num_processes > 1:
-            rank = accelerator.state.process_index
-            world_size = accelerator.state.num_processes
-
-            return itertools.islice(src, rank, None, world_size)
-        return src
+    rank = accelerator.state.process_index
+    world_size = accelerator.state.num_processes
+    print(f"[Rank {rank}/{world_size}] Found tar files: {len(urls)}")
 
     preprocess_gen = pth_transforms.Compose([
         pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
@@ -89,9 +83,11 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
             "attention_mask": attention_mask,
         }
 
+    # 使用 ResampledShards: 每个进程独立随机采样 shard，不再静态分配
+    # 这样每个进程都能看到所有数据集的数据，且每次采样都不同
+    # nshards 设为 None 表示无限采样（适合大规模训练）
     dataset = wds.DataPipeline(
-        wds.SimpleShardList(urls),
-        nodesplitter,
+        wds.ResampledShards(urls, nshards=None, seed=rank),  # 每个rank用不同seed
         wds.split_by_worker,
         wds.tarfile_to_samples(handler=wds.warn_and_continue), 
         wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
@@ -124,15 +120,9 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
 
     random.shuffle(urls)
 
-    print(f"Found tar files: {len(urls)}")
-
-    def nodesplitter(src, group=None):
-        if accelerator.state.num_processes > 1:
-            rank = accelerator.state.process_index
-            world_size = accelerator.state.num_processes
-
-            return itertools.islice(src, rank, None, world_size)
-        return src
+    rank = accelerator.state.process_index
+    world_size = accelerator.state.num_processes
+    print(f"[Rank {rank}/{world_size}] Found tar files: {len(urls)}")
 
     preprocess_gen = pth_transforms.Compose([
         pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
@@ -193,9 +183,9 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
             "attention_mask": attention_mask,
         }
 
+    # 使用 ResampledShards: 每个进程独立随机采样 shard，不再静态分配
     dataset = wds.DataPipeline(
-        wds.SimpleShardList(urls),
-        nodesplitter,
+        wds.ResampledShards(urls, nshards=None, seed=rank),  # 每个rank用不同seed
         wds.split_by_worker,
         wds.tarfile_to_samples(handler=wds.warn_and_continue), 
         wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
