@@ -14,7 +14,7 @@ def get_blip3o_dataloader(config, tokenizer, accelerator):
     for path in config.wds_path:
         urls.extend(glob.glob(os.path.join(path, "*.tar")))
 
-    random.shuffle(urls)
+    random.Random(42).shuffle(urls)
 
     print(f"Found tar files: {len(urls)}")
 
