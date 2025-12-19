@@ -75,12 +75,39 @@ class Trainer:
         )
         
         # Learning rate scheduler with warmup
-        warmup_steps = getattr(self.config.train, 'warmup_steps', 1000)
-        self.scheduler = get_cosine_schedule_with_warmup(
-            self.optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=self.config.train.num_iter,
-        )
+        use_scheduler = getattr(self.config.train, 'use_scheduler', True)
+        if use_scheduler:
+            warmup_steps = getattr(self.config.train, 'warmup_steps', 1000)
+            min_lr = getattr(self.config.train, 'min_lr', 0.0)
+            
+            # 如果设置了 min_lr，需要创建一个支持 min_lr 的 scheduler
+            if min_lr > 0:
+                # 使用 lambda scheduler 来实现带 min_lr 的 cosine schedule
+                from torch.optim.lr_scheduler import LambdaLR
+                import math
+                
+                def lr_lambda(current_step):
+                    if current_step < warmup_steps:
+                        # Warmup phase: linear increase from min_lr to lr
+                        return min_lr / self.config.train.lr + (1 - min_lr / self.config.train.lr) * (current_step / warmup_steps)
+                    else:
+                        # Cosine decay phase: from lr to min_lr
+                        progress = (current_step - warmup_steps) / (self.config.train.num_iter - warmup_steps)
+                        cosine_decay = 0.5 * (1 + math.cos(math.pi * progress))
+                        return min_lr / self.config.train.lr + (1 - min_lr / self.config.train.lr) * cosine_decay
+                
+                self.scheduler = LambdaLR(self.optimizer, lr_lambda)
+            else:
+                # 使用默认的 cosine schedule with warmup
+                self.scheduler = get_cosine_schedule_with_warmup(
+                    self.optimizer,
+                    num_warmup_steps=warmup_steps,
+                    num_training_steps=self.config.train.num_iter,
+                )
+        else:
+            # 不使用 scheduler，创建一个 dummy scheduler 保持学习率不变
+            from torch.optim.lr_scheduler import LambdaLR
+            self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda step: 1.0)
 
     def train(self):
         raise NotImplementedError

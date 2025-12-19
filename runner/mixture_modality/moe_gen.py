@@ -45,21 +45,21 @@ def generate(args):
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     prompts = [
         "a photo of a wine glass right of a hot dog",
-        "a photo of three TVs in a line",
+        "a photo of four TVs in a line",
         "a photo of a tennis racket and a wine glass",
         "a photo of a tv and a bicycle",
-        "A man in a white shirt and black pants is playing guitar on the street, with a crowd of people watching him. The background is a city street with buildings and trees.",
+        "A blackboard with words 'Hello, ICML 2026' in the center.",
         "A photo of a purple backpack and a yellow unbrella.",
         "A whiteboard with words 'Visual thinking without pixels' on it.",
         "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
-        "a photo of a blue cell phone and a green apple",
+        "a photo of a blue cell phone and a green apple with white background",
         "a photo of a pizza below a computer keyboard",
         "a photo of two clocks",
         "a photo of a blue banana",
     ]
     cfg_scale = args.cfg_scale
-    tau = 0.7
-    topk = 50
+    tau = 0.5
+    topk = 32
     topp = 0.9
     sampling_kwargs = {
         "temperature": tau,
