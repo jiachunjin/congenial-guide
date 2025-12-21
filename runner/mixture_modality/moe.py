@@ -61,9 +61,20 @@ class MyTrainer(Trainer):
         internvl = modify_internvl_to_mixture(internvl, self.config.model)
 
         if self.config.train.resume_path is not None:
-            ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=True)
+            ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=False)
+            # 兼容旧格式（只有模型参数）和新格式（包含 model 和 optimizer）
+            if isinstance(ckpt, dict) and 'model' in ckpt:
+                # 新格式：包含 model 和 optimizer
+                model_state = ckpt['model']
+                self._resume_optimizer_state = ckpt.get('optimizer', None)
+                self._resume_global_step = ckpt.get('global_step', None)
+            else:
+                # 旧格式：只有模型参数
+                model_state = ckpt
+                self._resume_optimizer_state = None
+                self._resume_global_step = None
             # 只加载 trainable 参数
-            internvl.load_state_dict(ckpt, strict=False)
+            internvl.load_state_dict(model_state, strict=False)
             print(f"Trainable parameters loaded from {self.config.train.resume_path}")
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
@@ -79,7 +90,14 @@ class MyTrainer(Trainer):
     def train(self):
         self.model, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.optimizer, self.scheduler)
         
-        # Resume 时：在 prepare 之后设置 scheduler 的步数（prepare 可能会重置状态）
+        # Resume 时：在 prepare 之后加载优化器状态和设置 scheduler 的步数
+        if hasattr(self, '_resume_optimizer_state') and self._resume_optimizer_state is not None:
+            try:
+                self.optimizer.load_state_dict(self._resume_optimizer_state)
+                self.accelerator.print(f"Optimizer state loaded from checkpoint")
+            except Exception as e:
+                self.accelerator.print(f"Warning: Failed to load optimizer state: {e}")
+        
         if self.global_step > 0:
             self.scheduler.scheduler.last_epoch = self.global_step  # scheduler 被 AcceleratedScheduler 包装了
             self.accelerator.print(f"Scheduler resumed to step {self.global_step}, lr = {self.scheduler.get_last_lr()[0]:.2e}")
@@ -165,14 +183,33 @@ class MyTrainer(Trainer):
                             if self.accelerator.is_main_process:
                                 self.model.eval()
                                 unwrapped_model = self.accelerator.unwrap_model(self.model)
+                                unwrapped_optimizer = self.accelerator.unwrap_model(self.optimizer) if hasattr(self.accelerator, 'unwrap_model') else self.optimizer
+                                # 获取未包装的优化器状态
+                                if hasattr(self.optimizer, 'state_dict'):
+                                    # 如果优化器被 Accelerator 包装，需要特殊处理
+                                    try:
+                                        optimizer_state = self.optimizer.state_dict()
+                                    except:
+                                        # 如果无法直接获取，尝试 unwrap
+                                        optimizer_state = unwrapped_optimizer.state_dict() if hasattr(unwrapped_optimizer, 'state_dict') else None
+                                else:
+                                    optimizer_state = None
+                                
                                 # 只保存 trainable 参数
                                 trainable_state_dict = {
                                     k: v for k, v in unwrapped_model.state_dict().items()
                                     if any(p.requires_grad for n, p in unwrapped_model.named_parameters() if n == k)
                                 }
+                                
+                                # 保存模型参数和优化器状态
+                                checkpoint = {
+                                    'model': trainable_state_dict,
+                                    'optimizer': optimizer_state,
+                                    'global_step': self.global_step,
+                                }
                                 save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
-                                torch.save(trainable_state_dict, save_path)
-                                print(f"Trainable parameters saved to {save_path}")
+                                torch.save(checkpoint, save_path)
+                                print(f"Trainable parameters and optimizer state saved to {save_path}")
 
                         if self.global_step >= self.config.train.num_iter:
                             training_done = True

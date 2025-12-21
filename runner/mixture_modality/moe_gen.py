@@ -43,24 +43,40 @@ def generate(args):
 
     IMG_START_TOKEN = "<img>"
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
-    prompts = [
-        "a photo of a wine glass right of a hot dog",
-        "a photo of four TVs in a line",
-        "a photo of a tennis racket and a wine glass",
-        "a photo of a tv and a bicycle",
-        "A blackboard with words 'Hello, ICML 2026' in the center.",
-        "A photo of a purple backpack and a yellow unbrella.",
-        "A whiteboard with words 'Visual thinking without pixels' on it.",
-        "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
-        "a photo of a blue cell phone and a green apple with white background",
-        "a photo of a pizza below a computer keyboard",
-        "a photo of two clocks",
-        "a photo of a blue banana",
-    ]
+    if args.rewrite:
+        prompts = [
+            "A photorealistic still life of a crystal wine glass placed to the right of a grilled hot dog, studio lighting, sharp focus.",
+            "A wide-angle shot of four retro television sets arranged in a perfect horizontal line against a plain wall.",
+            "A high-quality photo of a professional tennis racket resting next to a glass of red wine on a wooden surface.",
+            "A modern living room scene featuring a large TV and a vintage bicycle leaning against the wall.",
+            "A dark green blackboard with the words 'Hello, ICML 2026' written clearly in white chalk, centered composition.",
+            "A vibrant photo of a purple school backpack and a bright yellow umbrella on a white floor.",
+            "A clean white board with the text 'Visual thinking without pixels' written in the center, minimalist style, highly detailed.",
+            "A breathtaking portrait of a princess from Kabul in traditional red and white attire, striking blue eyes, brown hair, cinematic light.",
+            "A sleek blue smartphone and a crisp green apple on a pure white background, professional product photography.",
+            "A top-down view of a mechanical keyboard with a fresh pizza placed on the desk below it.",
+            "A minimalist photo of two identical analog clocks mounted side-by-side on a white wall.",
+            "A surrealist high-quality photo of a banana with vibrant blue peel, soft shadows, 8k resolution."
+        ]
+    else:
+        prompts = [
+            "a photo of a wine glass right of a hot dog",
+            "a photo of 4 TVs in a line",
+            "a photo of a tennis racket and a wine glass",
+            "a photo of a tv and a bicycle",
+            "A blackboard with words 'Hello, ICML 2026' in the center.",
+            "A photo of a purple backpack and a yellow unbrella.",
+            "A whiteboard with 'Visual thinking without pixels' in the center.",
+            "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
+            "a photo of a blue cell phone and a green apple with white background",
+            "a photo of a pizza below a computer keyboard",
+            "a photo of two clocks",
+            "a photo of a blue banana",
+        ]
     cfg_scale = args.cfg_scale
     tau = 0.5
-    topk = 32
-    topp = 0.9
+    topk = 50
+    topp = 0.95
     sampling_kwargs = {
         "temperature": tau,
         "top_k": topk,
@@ -146,7 +162,7 @@ def generate(args):
     
     os.makedirs("asset/code", exist_ok=True)
     all_codes = torch.cat(all_generated_codes, dim=0)
-    code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}.pt"
+    code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
     torch.save(all_codes, code_path)
     print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 
@@ -156,6 +172,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_dir", type=str, required=True)
     parser.add_argument("--step", type=int, required=True)
     parser.add_argument("--cfg_scale", type=float, default=3.0)
+    parser.add_argument("--rewrite", action="store_true")
     
     args = parser.parse_args()
 
