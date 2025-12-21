@@ -183,16 +183,18 @@ class MyTrainer(Trainer):
                             if self.accelerator.is_main_process:
                                 self.model.eval()
                                 unwrapped_model = self.accelerator.unwrap_model(self.model)
-                                unwrapped_optimizer = self.accelerator.unwrap_model(self.optimizer) if hasattr(self.accelerator, 'unwrap_model') else self.optimizer
-                                # 获取未包装的优化器状态
-                                if hasattr(self.optimizer, 'state_dict'):
-                                    # 如果优化器被 Accelerator 包装，需要特殊处理
-                                    try:
+                                
+                                # 获取优化器状态
+                                # 注意：对于 DeepSpeed 优化器，直接调用 state_dict() 可能不可用
+                                # DeepSpeed 的优化器状态由 DeepSpeed 引擎管理，通常不需要手动保存
+                                optimizer_state = None
+                                try:
+                                    if hasattr(self.optimizer, 'state_dict'):
                                         optimizer_state = self.optimizer.state_dict()
-                                    except:
-                                        # 如果无法直接获取，尝试 unwrap
-                                        optimizer_state = unwrapped_optimizer.state_dict() if hasattr(unwrapped_optimizer, 'state_dict') else None
-                                else:
+                                except Exception as e:
+                                    # DeepSpeed 优化器可能不支持直接获取 state_dict
+                                    # 这种情况下不保存优化器状态，DeepSpeed 会自己管理
+                                    self.accelerator.print(f"Warning: Could not save optimizer state: {e}")
                                     optimizer_state = None
                                 
                                 # 只保存 trainable 参数
