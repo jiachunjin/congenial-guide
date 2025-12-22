@@ -7,6 +7,76 @@ from einops import rearrange
 from util.misc import disable_torch_init
 
 @torch.inference_mode()
+def intern_gen(internvl, quantizer, tokenizer, prompt, batch_size, cfg_scale, sampling_kwargs, device):
+    from tqdm import trange
+    dtype = torch.bfloat16
+    IMG_START_TOKEN = "<img>"
+
+
+    batch_prompts = [prompt] * batch_size
+    tokenizer_output = tokenizer(
+        batch_prompts,
+        padding        = True,
+        padding_side   = "left",
+        truncation     = True,
+        return_tensors = "pt",
+    )
+
+    input_ids = torch.LongTensor(tokenizer_output["input_ids"]).to(device)
+    text_embedding = internvl.language_model.get_input_embeddings()(input_ids)
+
+    if cfg_scale > 1:
+        uncond_input_ids = input_ids.clone()
+        pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+        img_token_id = tokenizer.convert_tokens_to_ids(IMG_START_TOKEN)
+        for b in range(uncond_input_ids.shape[0]):
+            for t in range(uncond_input_ids.shape[1]):
+                if uncond_input_ids[b, t] == img_token_id:
+                    break
+                uncond_input_ids[b, t] = pad_token_id
+        
+        uncond_text_embedding = internvl.language_model.get_input_embeddings()(uncond_input_ids)
+        text_embedding_cfg = torch.cat([text_embedding, uncond_text_embedding], dim=0)
+    else:
+        text_embedding_cfg = text_embedding
+
+        past_key_values = None
+        generated_codes = []
+
+        for i in trange(256):
+            if i == 0:
+                current_input = text_embedding_cfg
+            else:
+                if cfg_scale > 1:
+                    current_input = torch.cat([img_embeds_current, img_embeds_current], dim=0)
+                else:
+                    current_input = img_embeds_current
+
+            if i == 0:
+                vision_token_mask = torch.zeros(current_input.shape[0], current_input.shape[1] - 1, device=device, dtype=dtype)
+                vision_token_mask = torch.cat([vision_token_mask, torch.ones(current_input.shape[0], 1, device=device, dtype=dtype)], dim=1)
+            else:
+                vision_token_mask = torch.ones(current_input.shape[0], current_input.shape[1], device=device, dtype=dtype)
+
+            outputs = internvl.language_model.model(
+                inputs_embeds     = current_input,
+                use_cache         = True,
+                past_key_values   = past_key_values,
+                vision_token_mask = vision_token_mask,
+            )
+            base_token = outputs.last_hidden_state[:, -1:, :]  # (B or 2*B, 1, D)
+            past_key_values = outputs.past_key_values
+
+            generated_code = internvl.ar_head.generate_from_base_token(base_token, cfg_scale, sampling_kwargs)
+            z_q_current, _ = quantizer.indices_to_feature(generated_code.unsqueeze(1))
+            img_embeds_current = internvl.visual_projector(z_q_current)  # (B, 1, llm_hidden_size)
+            generated_codes.append(generated_code)
+
+        generated_code = torch.stack(generated_codes, dim=1) # (B, L, K)
+        return generated_code
+
+
+@torch.inference_mode()
 def generate(args):
     from omegaconf import OmegaConf
 
@@ -83,12 +153,15 @@ def generate(args):
         "top_p": topp,
         "sample_logits": True
     }
+    batch_size = args.batch_size
     all_generated_codes = []
     for idx, prompt_txt in enumerate(prompts):
         prompt = prompt_txt + IMG_START_TOKEN
         print(prompt)
+        # 将单个 prompt 扩展为 batch_size 个副本
+        batch_prompts = [prompt] * batch_size
         tokenizer_output = tokenizer(
-            [prompt],
+            batch_prompts,
             padding        = True,
             padding_side   = "left",
             truncation     = True,
@@ -173,6 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("--step", type=int, required=True)
     parser.add_argument("--cfg_scale", type=float, default=3.0)
     parser.add_argument("--rewrite", action="store_true")
+    parser.add_argument("--batch_size", type=int, default=1)
     
     args = parser.parse_args()
 
