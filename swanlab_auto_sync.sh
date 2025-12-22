@@ -7,5 +7,5 @@ read -p "请输入 RUN_ID: " RUN_ID
 # 每2秒运行一次同步命令
 while true; do
     swanlab sync ./swanlog/${RUN_NAME} --id ${RUN_ID}
-    sleep 2
+    sleep 10
 done

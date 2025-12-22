@@ -187,15 +187,15 @@ class MyTrainer(Trainer):
                                 # 获取优化器状态
                                 # 注意：对于 DeepSpeed 优化器，直接调用 state_dict() 可能不可用
                                 # DeepSpeed 的优化器状态由 DeepSpeed 引擎管理，通常不需要手动保存
-                                optimizer_state = None
-                                try:
-                                    if hasattr(self.optimizer, 'state_dict'):
-                                        optimizer_state = self.optimizer.state_dict()
-                                except Exception as e:
+                                # optimizer_state = None
+                                # try:
+                                    # if hasattr(self.optimizer, 'state_dict'):
+                                        # optimizer_state = self.optimizer.state_dict()
+                                # except Exception as e:
                                     # DeepSpeed 优化器可能不支持直接获取 state_dict
                                     # 这种情况下不保存优化器状态，DeepSpeed 会自己管理
-                                    self.accelerator.print(f"Warning: Could not save optimizer state: {e}")
-                                    optimizer_state = None
+                                    # self.accelerator.print(f"Warning: Could not save optimizer state: {e}")
+                                    # optimizer_state = None
                                 
                                 # 只保存 trainable 参数
                                 trainable_state_dict = {
@@ -206,8 +206,8 @@ class MyTrainer(Trainer):
                                 # 保存模型参数和优化器状态
                                 checkpoint = {
                                     'model': trainable_state_dict,
-                                    'optimizer': optimizer_state,
-                                    'global_step': self.global_step,
+                                    # 'optimizer': optimizer_state,
+                                    # 'global_step': self.global_step,
                                 }
                                 save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
                                 torch.save(checkpoint, save_path)
