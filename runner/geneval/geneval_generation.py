@@ -68,12 +68,15 @@ def generate(args):
         print(f"Prompt ({index: >3}/{len(metadatas)}): '{prompt}'")
 
         sample_path = os.path.join(outpath, "samples")
+        code_path = os.path.join(outpath, "code")
         os.makedirs(sample_path, exist_ok=True)
+        os.makedirs(code_path, exist_ok=True)
         with open(os.path.join(outpath, "metadata.jsonl"), "w") as fp:
             json.dump(metadata, fp)
         
         generated_code = intern_gen(internvl, quantizer, tokenizer, prompt, B, cfg_scale, sampling_kwargs, device)
         print(f"Generated code shape: {generated_code.shape}")
+        torch.save(generated_code, os.path.join(code_path, "code.pt"))
 
 
 if __name__ == "__main__":

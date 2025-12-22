@@ -11,9 +11,10 @@ def intern_gen(internvl, quantizer, tokenizer, prompt, batch_size, cfg_scale, sa
     from tqdm import trange
     dtype = torch.bfloat16
     IMG_START_TOKEN = "<img>"
-
+    prompt = prompt + IMG_START_TOKEN
 
     batch_prompts = [prompt] * batch_size
+
     tokenizer_output = tokenizer(
         batch_prompts,
         padding        = True,
@@ -26,8 +27,10 @@ def intern_gen(internvl, quantizer, tokenizer, prompt, batch_size, cfg_scale, sa
     text_embedding = internvl.language_model.get_input_embeddings()(input_ids)
 
     if cfg_scale > 1:
+        # 创建无条件输入：将文本部分替换为pad token
         uncond_input_ids = input_ids.clone()
         pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+        # 找到IMG_START_TOKEN的位置，将其之前的所有token替换为pad_token_id
         img_token_id = tokenizer.convert_tokens_to_ids(IMG_START_TOKEN)
         for b in range(uncond_input_ids.shape[0]):
             for t in range(uncond_input_ids.shape[1]):
@@ -36,44 +39,51 @@ def intern_gen(internvl, quantizer, tokenizer, prompt, batch_size, cfg_scale, sa
                 uncond_input_ids[b, t] = pad_token_id
         
         uncond_text_embedding = internvl.language_model.get_input_embeddings()(uncond_input_ids)
-        text_embedding_cfg = torch.cat([text_embedding, uncond_text_embedding], dim=0)
+
+        text_embedding_cfg = torch.cat([text_embedding, uncond_text_embedding], dim=0)  # (2*B, L, D)
     else:
         text_embedding_cfg = text_embedding
 
-        past_key_values = None
-        generated_codes = []
+    past_key_values = None
+    generated_codes = []
+    x_vq_list = []
 
-        for i in trange(256):
-            if i == 0:
-                current_input = text_embedding_cfg
+    for i in trange(256):
+        if i == 0:
+            current_input = text_embedding_cfg
+        else:
+            if cfg_scale > 1:
+                # 条件和无条件分支使用相同的 img_embeds（因为采样结果相同）
+                # 拼接成 (2*B, 1, D) 的形式以匹配 KV cache 的 batch 维度
+                current_input = torch.cat([img_embeds_current, img_embeds_current], dim=0)
             else:
-                if cfg_scale > 1:
-                    current_input = torch.cat([img_embeds_current, img_embeds_current], dim=0)
-                else:
-                    current_input = img_embeds_current
+                current_input = img_embeds_current
 
-            if i == 0:
-                vision_token_mask = torch.zeros(current_input.shape[0], current_input.shape[1] - 1, device=device, dtype=dtype)
-                vision_token_mask = torch.cat([vision_token_mask, torch.ones(current_input.shape[0], 1, device=device, dtype=dtype)], dim=1)
-            else:
-                vision_token_mask = torch.ones(current_input.shape[0], current_input.shape[1], device=device, dtype=dtype)
+        # 构建 vision_token_mask: 第一次是文本(0)，后续是视觉(1)
+        if i == 0:
+            vision_token_mask = torch.zeros(current_input.shape[0], current_input.shape[1] - 1, device=device, dtype=dtype)
+            vision_token_mask = torch.cat([vision_token_mask, torch.ones(current_input.shape[0], 1, device=device, dtype=dtype)], dim=1)
+        else:
+            vision_token_mask = torch.ones(current_input.shape[0], current_input.shape[1], device=device, dtype=dtype)
 
-            outputs = internvl.language_model.model(
-                inputs_embeds     = current_input,
-                use_cache         = True,
-                past_key_values   = past_key_values,
-                vision_token_mask = vision_token_mask,
-            )
-            base_token = outputs.last_hidden_state[:, -1:, :]  # (B or 2*B, 1, D)
-            past_key_values = outputs.past_key_values
+        outputs = internvl.language_model.model(
+            inputs_embeds     = current_input,
+            use_cache         = True,
+            past_key_values   = past_key_values,
+            vision_token_mask = vision_token_mask,
+        )
+        base_token = outputs.last_hidden_state[:, -1:, :]  # (B or 2*B, 1, D)
+        past_key_values = outputs.past_key_values
 
-            generated_code = internvl.ar_head.generate_from_base_token(base_token, cfg_scale, sampling_kwargs)
-            z_q_current, _ = quantizer.indices_to_feature(generated_code.unsqueeze(1))
-            img_embeds_current = internvl.visual_projector(z_q_current)  # (B, 1, llm_hidden_size)
-            generated_codes.append(generated_code)
+        # generate_from_base_token 返回 (B, K)，无论是否使用 CFG
+        generated_code = internvl.ar_head.generate_from_base_token(base_token, cfg_scale, sampling_kwargs)
+        z_q_current, x_vq_current = quantizer.indices_to_feature(generated_code.unsqueeze(1))
+        img_embeds_current = internvl.visual_projector(z_q_current)  # (B, 1, llm_hidden_size)
+        x_vq_list.append(x_vq_current)
+        generated_codes.append(generated_code)
 
-        generated_code = torch.stack(generated_codes, dim=1) # (B, L, K)
-        return generated_code
+    generated_code = torch.stack(generated_codes, dim=1) # (B, L, K)
+    return generated_code
 
 
 @torch.inference_mode()
