@@ -177,37 +177,22 @@ class MyTrainer(Trainer):
                             # 保存前同步一次，确保所有进程都到达这里
                             self.accelerator.wait_for_everyone()
                             if self.accelerator.is_main_process:
-                                self.model.eval()
-                                unwrapped_model = self.accelerator.unwrap_model(self.model)
-                                
-                                # 获取优化器状态
-                                # 注意：对于 DeepSpeed 优化器，直接调用 state_dict() 可能不可用
-                                # DeepSpeed 的优化器状态由 DeepSpeed 引擎管理，通常不需要手动保存
-                                # optimizer_state = None
-                                # try:
-                                    # if hasattr(self.optimizer, 'state_dict'):
-                                        # optimizer_state = self.optimizer.state_dict()
-                                # except Exception as e:
-                                    # DeepSpeed 优化器可能不支持直接获取 state_dict
-                                    # 这种情况下不保存优化器状态，DeepSpeed 会自己管理
-                                    # self.accelerator.print(f"Warning: Could not save optimizer state: {e}")
-                                    # optimizer_state = None
-                                
-                                # 只保存 trainable 参数
-                                trainable_state_dict = {
-                                    k: v for k, v in unwrapped_model.state_dict().items()
-                                    if any(p.requires_grad for n, p in unwrapped_model.named_parameters() if n == k)
-                                }
-                                
-                                # 保存模型参数和优化器状态
-                                checkpoint = {
-                                    'model': trainable_state_dict,
-                                    # 'optimizer': optimizer_state,
-                                    # 'global_step': self.global_step,
-                                }
-                                save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
-                                torch.save(checkpoint, save_path)
-                                print(f"Trainable parameters and optimizer state saved to {save_path}")
+                                # --- new version ---
+                                self.accelerator.save_state(os.path.join(self.output_dir, f"checkpoint-{self.global_step}"))
+                                # --- old version ---
+                                # self.model.eval()
+                                # unwrapped_model = self.accelerator.unwrap_model(self.model)
+                                # # 只保存 trainable 参数
+                                # trainable_state_dict = {
+                                #     k: v for k, v in unwrapped_model.state_dict().items()
+                                #     if any(p.requires_grad for n, p in unwrapped_model.named_parameters() if n == k)
+                                # }
+                                # checkpoint = {
+                                #     'model': trainable_state_dict,
+                                # }
+                                # save_path = os.path.join(self.output_dir, f"model-{self.config.train.exp_name}-{self.global_step}")
+                                # torch.save(checkpoint, save_path)
+                                # print(f"Trainable parameters saved to {save_path}")
 
                         if self.global_step >= self.config.train.num_iter:
                             training_done = True
