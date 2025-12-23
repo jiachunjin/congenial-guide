@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import torch
 from accelerate.utils import set_seed
-
+from accelerate import Accelerator
 
 @torch.inference_mode()
 def generate(args):
@@ -18,7 +18,8 @@ def generate(args):
     from omegaconf import OmegaConf
     from transformers import AutoTokenizer
 
-    device = torch.device("cuda:0")
+    accelerator = Accelerator()
+    device = accelerator.device
     dtype = torch.bfloat16
     exp_dir = args.exp_dir
     exp_name = args.exp_dir.split("/")[-1]
@@ -58,14 +59,22 @@ def generate(args):
         "sample_logits": True
     }
 
+    # 将任务分配到不同的GPU
+    num_processes = accelerator.num_processes
+    process_index = accelerator.process_index
+    
     for index, metadata in enumerate(metadatas):
+        # 只处理分配给当前进程的任务
+        if index % num_processes != process_index:
+            continue
+            
         set_seed(args.seed)
 
         outpath = os.path.join(args.outdir, f"{index:0>5}")
         os.makedirs(outpath, exist_ok=True)
 
         prompt = metadata['prompt']
-        print(f"Prompt ({index: >3}/{len(metadatas)}): '{prompt}'")
+        accelerator.print(f"Process {process_index}: Prompt ({index: >3}/{len(metadatas)}): '{prompt}'")
 
         sample_path = os.path.join(outpath, "samples")
         code_path = os.path.join(outpath, "code")
@@ -75,7 +84,7 @@ def generate(args):
             json.dump(metadata, fp)
         
         generated_code = intern_gen(internvl, quantizer, tokenizer, prompt, B, cfg_scale, sampling_kwargs, device)
-        print(f"Generated code shape: {generated_code.shape}")
+        accelerator.print(f"Process {process_index}: Generated code shape: {generated_code.shape}")
         torch.save(generated_code, os.path.join(code_path, "code.pt"))
 
 
