@@ -65,3 +65,13 @@ def decode_code(args):
             sample_pil = Image.fromarray((sample.permute(1, 2, 0).cpu().float().numpy() * 255).astype("uint8"))
             sample_pil.save(os.path.join(sample_path, f"{sample_count:05}.png"))
             sample_count += 1
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--exp_dir", type=str, required=True)
+    parser.add_argument("--step", type=int, required=True)
+
+    args = parser.parse_args()
+    decode_code(args)

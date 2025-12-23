@@ -107,6 +107,8 @@ def generate(args):
     internvl = modify_internvl_to_mixture(internvl, config.model)
     ckpt_path = os.path.join(exp_dir, f"model-mcq_gen-{step}")
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    if "model" in ckpt:
+        ckpt = ckpt["model"]
     internvl.load_state_dict(ckpt, strict=False)
     internvl = internvl.to(device, dtype).eval()
 

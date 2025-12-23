@@ -157,25 +157,21 @@ class MyTrainer(Trainer):
                     self.accelerator.backward(loss)
 
                     if self.accelerator.sync_gradients:
-                        self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
+                        grad_norm = self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
                         self.optimizer.step()
                         self.scheduler.step()
                         self.optimizer.zero_grad()
 
                         self.global_step += 1
                         self.progress_bar.update(1)
-                        
-                        # 只在日志步骤做 gather，避免每步同步
-                        # if self.global_step % 10 == 0:
+
                         logs = dict(
                             loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
                             lr = self.scheduler.get_last_lr()[0],
+                            grad_norm = grad_norm.item() if hasattr(grad_norm, 'item') else grad_norm,
                         )
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
-                        # else:
-                        #     # 只用本地 loss 更新进度条，不做跨节点通信
-                        #     self.progress_bar.set_postfix(loss_CE=loss.detach().item())
 
                         if self.global_step > 0 and self.global_step % self.config.train.save_every == 0:
                             # 保存前同步一次，确保所有进程都到达这里
