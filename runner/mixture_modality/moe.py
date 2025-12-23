@@ -176,9 +176,9 @@ class MyTrainer(Trainer):
                         if self.global_step > 0 and self.global_step % self.config.train.save_every == 0:
                             # 保存前同步一次，确保所有进程都到达这里
                             self.accelerator.wait_for_everyone()
-                            if self.accelerator.is_main_process:
-                                # --- new version ---
-                                self.accelerator.save_state(os.path.join(self.output_dir, f"checkpoint-{self.global_step}"))
+                            # --- new version (need to call in all the processes) ---
+                            self.accelerator.save_state(os.path.join(self.output_dir, f"checkpoint-{self.global_step}"))
+                            # if self.accelerator.is_main_process:
                                 # --- old version ---
                                 # self.model.eval()
                                 # unwrapped_model = self.accelerator.unwrap_model(self.model)
