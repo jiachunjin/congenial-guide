@@ -62,20 +62,22 @@ class MyTrainer(Trainer):
 
         if self.config.train.resume_path is not None:
             ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=False)
-            # 兼容旧格式（只有模型参数）和新格式（包含 model 和 optimizer）
             if isinstance(ckpt, dict) and 'model' in ckpt:
-                # 新格式：包含 model 和 optimizer
                 model_state = ckpt['model']
-                self._resume_optimizer_state = ckpt.get('optimizer', None)
                 self._resume_global_step = ckpt.get('global_step', None)
             else:
-                # 旧格式：只有模型参数
                 model_state = ckpt
-                self._resume_optimizer_state = None
                 self._resume_global_step = None
-            # 只加载 trainable 参数
             internvl.load_state_dict(model_state, strict=False)
             print(f"Trainable parameters loaded from {self.config.train.resume_path}")
+
+            # self._resume_checkpoint_dir = self.config.train.resume_path
+            # dir_name = os.path.basename(self._resume_checkpoint_dir.rstrip('/'))
+            # if dir_name.startswith('checkpoint-'):
+            #     self._resume_global_step = int(dir_name.split('-')[-1])
+            # else:
+            #     self._resume_global_step = None
+            # self.accelerator.print(f"Will resume from {self._resume_checkpoint_dir}, global_step={self._resume_global_step}")
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
@@ -89,18 +91,16 @@ class MyTrainer(Trainer):
 
     def train(self):
         self.model, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.optimizer, self.scheduler)
-        
-        # Resume 时：在 prepare 之后加载优化器状态和设置 scheduler 的步数
-        if hasattr(self, '_resume_optimizer_state') and self._resume_optimizer_state is not None:
-            try:
-                self.optimizer.load_state_dict(self._resume_optimizer_state)
-                self.accelerator.print(f"Optimizer state loaded from checkpoint")
-            except Exception as e:
-                self.accelerator.print(f"Warning: Failed to load optimizer state: {e}")
-        
-        if self.global_step > 0:
-            self.scheduler.scheduler.last_epoch = self.global_step  # scheduler 被 AcceleratedScheduler 包装了
-            self.accelerator.print(f"Scheduler resumed to step {self.global_step}, lr = {self.scheduler.get_last_lr()[0]:.2e}")
+
+        # Resume: 在 prepare 之后使用 accelerator.load_state() 加载模型、优化器和 scheduler 状态
+        if hasattr(self, '_resume_checkpoint_dir') and self._resume_checkpoint_dir is not None:
+            self.accelerator.load_state(self._resume_checkpoint_dir)
+            self.accelerator.print(f"Checkpoint loaded from {self._resume_checkpoint_dir}")
+
+            # 恢复 global_step
+            if hasattr(self, '_resume_global_step') and self._resume_global_step is not None:
+                self.global_step = self._resume_global_step
+                self.accelerator.print(f"Resumed at global_step={self.global_step}, lr={self.scheduler.get_last_lr()[0]:.2e}")
         
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)

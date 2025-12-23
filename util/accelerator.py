@@ -9,7 +9,7 @@ def get_accelerator(config):
     output_dir = os.path.join(config.train.root, config.train.exp_name, config.train.output_dir)
     os.makedirs(output_dir, exist_ok=True)
     logging_dir = os.path.join(output_dir, config.train.logging_dir)
-    project_config = ProjectConfiguration(project_dir=config.train.output_dir, logging_dir=logging_dir)
+    project_config = ProjectConfiguration(project_dir=config.train.output_dir, logging_dir=logging_dir, total_limit=4)
     accelerator = Accelerator(
         log_with                    = config.train.report_to,
         mixed_precision             = config.train.mixed_precision,
