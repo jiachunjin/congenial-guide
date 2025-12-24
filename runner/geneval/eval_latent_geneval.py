@@ -16,14 +16,14 @@ disable_torch_init()
 @torch.no_grad()
 def eval_latent_geneval(args):
     from model.internvl.modeling_internvl_chat import InternVLChatModel
-    from runner.vq_distill.distill import add_quantizer
+    from runner.mixture_modality.moe import modify_internvl_to_mixture
 
     device = torch.device("cuda")
     dtype = torch.bfloat16
     exp_dir = args.exp_dir
-    # exp_name = args.exp_dir.split("/")[-1]
-    # step = args.step
-    geneval_path = "asset/geneval/1224_new_save/45000"
+    exp_name = args.exp_dir.split("/")[-1]
+    step = args.step
+    geneval_path = f"asset/geneval/1224_new_save/{step}"
 
     # load latent geneval questions
     with open("evaluation/generation/geneval/correct_answers.jsonl", "r") as f:
@@ -36,6 +36,16 @@ def eval_latent_geneval(args):
     config = OmegaConf.load(os.path.join(exp_dir, f"config.yaml"))
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
+    internvl = modify_internvl_to_mixture(internvl, config.model)
+    ckpt_path = os.path.join(exp_dir, f"checkpoint-{step}/pytorch_model/mp_rank_00_model_states.pt")
+    # ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    # if "model" in ckpt:
+    #     ckpt = ckpt["model"]
+    # ckpt_path = "/checkpoint-35000/pytorch_model/mp_rank_00_model_states.pt"
+    ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
+
+    m, u = internvl.load_state_dict(ckpt, strict=False)
+    print(f"unused keys: {u}")
     internvl = internvl.to(device, dtype).eval()
 
     quantizer = get_multi_vq_quantizer(config.model.quantizer)
@@ -46,7 +56,7 @@ def eval_latent_geneval(args):
 
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
-    with open(os.path.join(geneval_path, "results.jsonl"), "w") as results_file:
+    with open(f"asset/geneval/latent_results/results_{step}.jsonl", "w") as results_file:
         for json_line in json_lines:
             index = json_line["index"]
             question = json_line["question"]
@@ -76,8 +86,9 @@ def eval_latent_geneval(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp_dir", required=True)
+    parser.add_argument("--exp_dir", default="/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/experiment/mcq_gen/1224_new_save")
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--step", default=75000)
     args = parser.parse_args()
 
     eval_latent_geneval(args)

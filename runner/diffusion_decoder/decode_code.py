@@ -34,7 +34,8 @@ def decode_code(args):
     mmdit.load_state_dict(ckpt, strict=True)
     mmdit = mmdit.to(device, dtype).eval()
 
-    code = torch.load(args.code_path)
+    code = torch.load(args.code_path).cpu()
+    code = code.to(device)
     z_q, _ = quantizer.indices_to_feature(code)
     print(z_q.shape)
 

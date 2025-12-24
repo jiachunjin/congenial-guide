@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import torch
 from einops import rearrange
 from util.misc import disable_torch_init
+from accelerate import Accelerator
 
 @torch.inference_mode()
 def intern_gen(internvl, quantizer, tokenizer, prompt, batch_size, cfg_scale, sampling_kwargs, device):
@@ -90,7 +91,8 @@ def intern_gen(internvl, quantizer, tokenizer, prompt, batch_size, cfg_scale, sa
 def generate(args):
     from omegaconf import OmegaConf
 
-    device = torch.device("cuda:0")
+    accelerator = Accelerator()
+    device = accelerator.device
     dtype = torch.bfloat16
     exp_dir = args.exp_dir
     exp_name = args.exp_dir.split("/")[-1]
@@ -113,7 +115,7 @@ def generate(args):
     ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
 
     m, u = internvl.load_state_dict(ckpt, strict=False)
-    print(f"unused keys: {u}")
+    accelerator.print(f"unused keys: {u}")
     internvl = internvl.to(device, dtype).eval()
 
     quantizer = get_multi_vq_quantizer(config.model.quantizer)
@@ -157,6 +159,18 @@ def generate(args):
             "a photo of a pizza below a computer keyboard",
             "a photo of two clocks",
             "a photo of a blue banana",
+            "A soft, natural portrait photograph captures a young woman with fair skin and long, ash-blonde hair cascading gently over her shoulders. At the very bottom of the frame, in simple, elegant lettering, appears the phrase 'BE KIND'",
+            "The image depicts a modern, multi-story building with a white facade and numerous balconies. The structure is partially covered in purple scaffolding on the right side, indicating ongoing construction or renovation. The building is situated in an urban area with clear blue skies above. In front of the building, there is a paved plaza with some greenery and a few palm trees. A street lamp stands prominently on the left side of the plaza. To the right, part of another building with a beige exterior is visible. The scene suggests a sunny day in a developed cityscape.",
+            "A photo of 4 TVs in a row, with a white background",
+            "A serious Santa Claus in a rustic setting.",
+            "The image depicts the American Red Cross building, characterized by its neoclassical architectural style. The structure features tall, white columns supporting a pediment and a balustrade at the top. The facade is adorned with large windows, some of which have red crosses, symbolizing the organization's humanitarian mission. The building is set against a clear blue sky, with a tree partially obscuring the right side of the image. The overall appearance suggests a sense of stability and dedication to service, reflecting the Red Cross's commitment to aid and support.",
+            "A photo of a red dog",
+            "Scientist at Sunway University conducts research in a laboratory setting.",
+            "Muscular man in workout attire, standing confidently by a railing.",
+            "Confident man in leather jacket leaning against a wall.",
+            "A detailed ink illustration of a hedgehog.",
+            "A cheetah is sitting in the grass on a grassland at sunset.",
+            "An oil portrait: A young woman in a flower field at sunset, with mountains in the background."
         ]
     cfg_scale = args.cfg_scale
     tau = 0.5
@@ -169,10 +183,22 @@ def generate(args):
         "sample_logits": True
     }
     batch_size = args.batch_size
+    
+    # 将任务分配到不同的GPU
+    num_processes = accelerator.num_processes
+    process_index = accelerator.process_index
+    
     all_generated_codes = []
+    all_prompt_indices = []
+    
     for idx, prompt_txt in enumerate(prompts):
+        # 只处理分配给当前进程的任务
+        if idx % num_processes != process_index:
+            continue
+            
+        all_prompt_indices.append(idx)
         prompt = prompt_txt + IMG_START_TOKEN
-        print(prompt)
+        accelerator.print(f"Process {process_index}: Processing prompt {idx}/{len(prompts)}: '{prompt_txt[:50]}...'")
         # 将单个 prompt 扩展为 batch_size 个副本
         batch_prompts = [prompt] * batch_size
         tokenizer_output = tokenizer(
@@ -244,15 +270,61 @@ def generate(args):
 
         generated_code = torch.stack(generated_codes, dim=1) # (B, L, K)
         all_generated_codes.append(generated_code)
-        all_codes = torch.cat(all_generated_codes, dim=0)  # (B, L, K) where B is number of prompts
-        x_vq = torch.cat(x_vq_list, dim=1) # (B, L, embedding_dim)
-        print(f"x_vq shape: {x_vq.shape}, all_codes shape: {all_codes.shape}")
+        accelerator.print(f"Process {process_index}: Generated code shape: {generated_code.shape}")
     
+    # 每个进程将结果保存到临时文件
     os.makedirs("asset/code", exist_ok=True)
-    all_codes = torch.cat(all_generated_codes, dim=0)
-    code_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
-    torch.save(all_codes, code_path)
-    print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
+    temp_code_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}_rank{process_index}.pt"
+    temp_indices_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}_rank{process_index}_indices.pt"
+    
+    if all_generated_codes:
+        # 保存当前进程的 codes 和对应的 prompt 索引
+        # all_generated_codes 是一个列表，每个元素是 (batch_size, L, K) 的 tensor
+        # 我们需要保存为字典，键为 prompt 索引，值为对应的 code tensor
+        codes_dict = {idx: code for idx, code in zip(all_prompt_indices, all_generated_codes)}
+        torch.save(codes_dict, temp_code_path)
+        torch.save(torch.tensor(all_prompt_indices), temp_indices_path)
+        accelerator.print(f"Process {process_index}: Saved {len(all_generated_codes)} codes to {temp_code_path}")
+    
+    # 等待所有进程完成
+    accelerator.wait_for_everyone()
+    
+    # 只在主进程（rank 0）进行合并和保存
+    if accelerator.is_main_process:
+        all_codes_list = []
+        
+        # 收集所有进程的结果
+        for rank in range(num_processes):
+            rank_code_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}_rank{rank}.pt"
+            rank_indices_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}_rank{rank}_indices.pt"
+            
+            if os.path.exists(rank_code_path) and os.path.exists(rank_indices_path):
+                rank_codes_dict = torch.load(rank_code_path, map_location="cpu")
+                rank_indices = torch.load(rank_indices_path, map_location="cpu").tolist()
+                
+                # 将每个 code 与其对应的 prompt 索引配对
+                for idx in rank_indices:
+                    if idx in rank_codes_dict:
+                        all_codes_list.append((idx, rank_codes_dict[idx]))
+                
+                # 删除临时文件
+                os.remove(rank_code_path)
+                os.remove(rank_indices_path)
+        
+        if all_codes_list:
+            # 按照原始 prompt 索引排序
+            all_codes_list.sort(key=lambda x: x[0])
+            
+            # 提取排序后的 codes
+            sorted_codes = [code for _, code in all_codes_list]
+            
+            # 合并所有 codes
+            all_codes = torch.cat(sorted_codes, dim=0).cpu()  # (total_B, L, K) where total_B is total batch size across all prompts
+            code_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
+            torch.save(all_codes, code_path)
+            accelerator.print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
+        else:
+            accelerator.print("Warning: No codes generated!")
 
 if __name__ == "__main__":
     import argparse

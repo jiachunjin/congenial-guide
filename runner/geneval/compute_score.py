@@ -162,6 +162,11 @@ def print_scores(scores: Dict[str, Any]):
 
 
 if __name__ == "__main__":
-    scores = compute_score()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--results_file", type=str, required=True)
+    args = parser.parse_args()
+    
+    scores = compute_score(results_file=args.results_file)
     print_scores(scores)
 
