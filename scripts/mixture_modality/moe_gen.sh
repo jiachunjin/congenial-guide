@@ -3,7 +3,7 @@ export CUDA_LAUNCH_BLOCKING=1
 
 python runner/mixture_modality/moe_gen.py \
 --exp_dir /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1224_new_save \
---step 45000 \
+--step 60000 \
 --cfg_scale 3.0 \
 --batch_size 4
 
