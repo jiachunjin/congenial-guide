@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import numpy as np
 import torch
+from accelerate import Accelerator
 
 @torch.inference_mode()
 def decode_code(args):
@@ -15,7 +16,8 @@ def decode_code(args):
     from runner.mcq_gen.dev_ar_head import load_quantizer
 
     # basic configs
-    device = torch.device("cuda:0")
+    accelerator = Accelerator()
+    device = accelerator.device
     dtype = torch.bfloat16
     config = OmegaConf.load(os.path.join(args.exp_dir, "config.yaml"))
     ckpt_path = os.path.join(args.exp_dir, f"model-sd_decoder-{args.step}")
@@ -34,11 +36,24 @@ def decode_code(args):
     mmdit.load_state_dict(ckpt, strict=True)
     mmdit = mmdit.to(device, dtype).eval()
 
-    geneval_path = "asset/geneval"
-    for sub_dir in os.listdir(geneval_path):
+    geneval_path = args.geneval_path
+    sub_dirs = sorted(os.listdir(geneval_path))
+    
+    # 将任务分配到不同的GPU
+    num_processes = accelerator.num_processes
+    process_index = accelerator.process_index
+    
+    for index, sub_dir in enumerate(sub_dirs):
+        # 只处理分配给当前进程的任务
+        if index % num_processes != process_index:
+            continue
+            
         sub_dir_path = os.path.join(geneval_path, sub_dir)
         code_path = os.path.join(sub_dir_path, "code", "code.pt")
         sample_path = os.path.join(sub_dir_path, "samples")
+        # if sample_path is not empty, skip
+        if os.path.exists(sample_path) and len(os.listdir(sample_path)) > 0:
+            continue
         code = torch.load(code_path, map_location="cpu").to(device)
         z_q, _ = quantizer.indices_to_feature(code)
 
@@ -56,7 +71,7 @@ def decode_code(args):
             guidance_scale      = 1.0,
             seed                = 42
         )
-        print(f"{sub_dir} is done")
+        accelerator.print(f"Process {process_index}: {sub_dir} ({index: >3}/{len(sub_dirs)}) is done")
 
         os.makedirs(sample_path, exist_ok=True)
         sample_count = 0
@@ -66,12 +81,17 @@ def decode_code(args):
             sample_pil.save(os.path.join(sample_path, f"{sample_count:05}.png"))
             sample_count += 1
 
+    # 等待所有进程完成
+    accelerator.wait_for_everyone()
+    accelerator.end_training()
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_dir", type=str, default="/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/sd_decoder/1206_sd_decoder")
     parser.add_argument("--step", type=int, default=80000)
+    parser.add_argument("--geneval_path", type=str, required=True)
 
     args = parser.parse_args()
     decode_code(args)
