@@ -1,7 +1,7 @@
 import json
 
 Q = {
-    "count": "How many {obj}s are there in the image?",
+    "count": "How many {obj}s are there in the image? Directly answer with an Arabic numeral, with no other words.",
     "colors": "Is the {obj} in the image {color}? Directly answer yes or no, with no other words.",
     "position": "Is the {obj_2} {position} the {obj_1}? Directly answer yes or no, with no other words.",
 }
@@ -19,6 +19,7 @@ with open("evaluation/generation/geneval/correct_answers.jsonl", "w") as gt_file
             correct_count = test_case["include"][0]["count"]
             gt_file.write(json.dumps({
                 "index": index,
+                "type": test_case["tag"],
                 "question": Q["count"].format(obj=obj),
                 "correct_answer": correct_count
             }) + "\n")
@@ -30,6 +31,7 @@ with open("evaluation/generation/geneval/correct_answers.jsonl", "w") as gt_file
                 question = Q["count"].format(obj=obj)
                 gt_file.write(json.dumps({
                     "index": index,
+                    "type": test_case["tag"],
                     "question": Q["count"].format(obj=obj),
                     "correct_answer": correct_count
                 }) + "\n")
@@ -41,6 +43,7 @@ with open("evaluation/generation/geneval/correct_answers.jsonl", "w") as gt_file
                 question = Q["count"].format(obj=obj)
                 gt_file.write(json.dumps({
                     "index": index,
+                    "type": test_case["tag"],
                     "question": Q["count"].format(obj=obj),
                     "correct_answer": correct_count
                 }) + "\n")
@@ -53,6 +56,7 @@ with open("evaluation/generation/geneval/correct_answers.jsonl", "w") as gt_file
                 print(index, question)
                 gt_file.write(json.dumps({
                     "index": index,
+                    "type": test_case["tag"],
                     "question": Q["colors"].format(obj=obj, color=color),
                     "correct_answer": "yes"
                 }) + "\n")
@@ -64,6 +68,7 @@ with open("evaluation/generation/geneval/correct_answers.jsonl", "w") as gt_file
             question = Q["position"].format(obj_1=obj_1, obj_2=obj_2, position=position_relation)
             gt_file.write(json.dumps({
                 "index": index,
+                "type": test_case["tag"],
                 "question": question,
                 "correct_answer": "yes"
             }) + "\n")
@@ -76,6 +81,7 @@ with open("evaluation/generation/geneval/correct_answers.jsonl", "w") as gt_file
 
                     gt_file.write(json.dumps({
                         "index": index,
+                        "type": test_case["tag"],
                         "question": question,
                         "correct_answer": "yes"
                     }) + "\n")
