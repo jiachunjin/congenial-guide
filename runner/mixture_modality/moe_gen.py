@@ -105,10 +105,13 @@ def generate(args):
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl_to_mixture(internvl, config.model)
-    ckpt_path = os.path.join(exp_dir, f"model-mcq_gen-{step}")
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    if "model" in ckpt:
-        ckpt = ckpt["model"]
+    # ckpt_path = os.path.join(exp_dir, f"model-mcq_gen-{step}")
+    # ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    # if "model" in ckpt:
+    #     ckpt = ckpt["model"]
+    ckpt_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1224_new_save/checkpoint-35000/pytorch_model/mp_rank_00_model_states.pt"
+    ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
+
     internvl.load_state_dict(ckpt, strict=False)
     internvl = internvl.to(device, dtype).eval()
 
@@ -149,7 +152,7 @@ def generate(args):
             "A blackboard with words 'Hello, ICML 2026' in the center.",
             "A photo of a purple backpack and a yellow unbrella.",
             "A whiteboard with 'Visual thinking without pixels' in the center.",
-            "A stunning princess from kabul in red, white traditional clothing, blue eyes, brown hair.",
+            "a photo of a red orange and a purple broccoli",
             "a photo of a blue cell phone and a green apple with white background",
             "a photo of a pizza below a computer keyboard",
             "a photo of two clocks",
@@ -247,7 +250,7 @@ def generate(args):
     
     os.makedirs("asset/code", exist_ok=True)
     all_codes = torch.cat(all_generated_codes, dim=0)
-    code_path = f"asset/code/code_{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
+    code_path = f"asset/code/code_new_35000_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
     torch.save(all_codes, code_path)
     print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 

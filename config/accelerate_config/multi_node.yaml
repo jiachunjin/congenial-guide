@@ -3,7 +3,7 @@ debug: false
 distributed_type: DEEPSPEED
 
 deepspeed_config:
-  gradient_accumulation_steps: 2  # 增加到4，减少通信频率
+  gradient_accumulation_steps: 1  # 增加到4，减少通信频率
   gradient_clipping: 1.0
   offload_optimizer_device: none
   offload_param_device: none

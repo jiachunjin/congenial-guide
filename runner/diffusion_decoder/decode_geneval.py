@@ -39,7 +39,7 @@ def decode_code(args):
         sub_dir_path = os.path.join(geneval_path, sub_dir)
         code_path = os.path.join(sub_dir_path, "code", "code.pt")
         sample_path = os.path.join(sub_dir_path, "samples")
-        code = torch.load(code_path)
+        code = torch.load(code_path, map_location="cpu").to(device)
         z_q, _ = quantizer.indices_to_feature(code)
 
         samples = sample_sd3_5(
@@ -56,7 +56,7 @@ def decode_code(args):
             guidance_scale      = 1.0,
             seed                = 42
         )
-        print(samples.shape)
+        print(f"{sub_dir} is done")
 
         os.makedirs(sample_path, exist_ok=True)
         sample_count = 0
@@ -70,8 +70,8 @@ def decode_code(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp_dir", type=str, required=True)
-    parser.add_argument("--step", type=int, required=True)
+    parser.add_argument("--exp_dir", type=str, default="/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/sd_decoder/1206_sd_decoder")
+    parser.add_argument("--step", type=int, default=80000)
 
     args = parser.parse_args()
     decode_code(args)

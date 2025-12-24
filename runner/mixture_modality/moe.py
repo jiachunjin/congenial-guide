@@ -61,23 +61,23 @@ class MyTrainer(Trainer):
         internvl = modify_internvl_to_mixture(internvl, self.config.model)
 
         if self.config.train.resume_path is not None:
-            ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=False)
-            if isinstance(ckpt, dict) and 'model' in ckpt:
-                model_state = ckpt['model']
-                self._resume_global_step = ckpt.get('global_step', None)
-            else:
-                model_state = ckpt
-                self._resume_global_step = None
-            internvl.load_state_dict(model_state, strict=False)
-            print(f"Trainable parameters loaded from {self.config.train.resume_path}")
-
-            # self._resume_checkpoint_dir = self.config.train.resume_path
-            # dir_name = os.path.basename(self._resume_checkpoint_dir.rstrip('/'))
-            # if dir_name.startswith('checkpoint-'):
-            #     self._resume_global_step = int(dir_name.split('-')[-1])
+            # ckpt = torch.load(self.config.train.resume_path, map_location="cpu", weights_only=False)
+            # if isinstance(ckpt, dict) and 'model' in ckpt:
+            #     model_state = ckpt['model']
+            #     self._resume_global_step = ckpt.get('global_step', None)
             # else:
+            #     model_state = ckpt
             #     self._resume_global_step = None
-            # self.accelerator.print(f"Will resume from {self._resume_checkpoint_dir}, global_step={self._resume_global_step}")
+            # internvl.load_state_dict(model_state, strict=False)
+            # print(f"Trainable parameters loaded from {self.config.train.resume_path}")
+
+            self._resume_checkpoint_dir = self.config.train.resume_path
+            dir_name = os.path.basename(self._resume_checkpoint_dir.rstrip('/'))
+            if dir_name.startswith('checkpoint-'):
+                self._resume_global_step = int(dir_name.split('-')[-1])
+            else:
+                self._resume_global_step = None
+            self.accelerator.print(f"Will resume from {self._resume_checkpoint_dir}, global_step={self._resume_global_step}")
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
