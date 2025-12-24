@@ -24,6 +24,10 @@ def generate(args):
     exp_dir = args.exp_dir
     exp_name = args.exp_dir.split("/")[-1]
     step = args.step
+
+    outdir = os.path.join(args.outdir, exp_name, str(step))
+    os.makedirs(outdir, exist_ok=True)
+
     config = OmegaConf.load(os.path.join(exp_dir, f"config.yaml"))
 
     from model.internvl.modeling_internvl_chat import InternVLChatModel
@@ -75,7 +79,7 @@ def generate(args):
             
         set_seed(args.seed)
 
-        outpath = os.path.join(args.outdir, f"{index:0>5}")
+        outpath = os.path.join(outdir, f"{index:0>5}")
         os.makedirs(outpath, exist_ok=True)
 
         prompt = metadata['prompt']
