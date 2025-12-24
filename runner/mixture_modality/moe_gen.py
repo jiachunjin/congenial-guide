@@ -105,14 +105,15 @@ def generate(args):
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl_to_mixture(internvl, config.model)
-    # ckpt_path = os.path.join(exp_dir, f"model-mcq_gen-{step}")
+    ckpt_path = os.path.join(exp_dir, f"checkpoint-{step}/pytorch_model/mp_rank_00_model_states.pt")
     # ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     # if "model" in ckpt:
     #     ckpt = ckpt["model"]
-    ckpt_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1224_new_save/checkpoint-35000/pytorch_model/mp_rank_00_model_states.pt"
+    # ckpt_path = "/checkpoint-35000/pytorch_model/mp_rank_00_model_states.pt"
     ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
 
-    internvl.load_state_dict(ckpt, strict=False)
+    m, u = internvl.load_state_dict(ckpt, strict=False)
+    print(f"unused keys: {u}")
     internvl = internvl.to(device, dtype).eval()
 
     quantizer = get_multi_vq_quantizer(config.model.quantizer)
@@ -124,7 +125,6 @@ def generate(args):
     # ---------- generate from text prompt ----------
     from tqdm import trange
     from transformers import AutoTokenizer
-    from util.sample import sample
 
     IMG_START_TOKEN = "<img>"
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
@@ -149,7 +149,7 @@ def generate(args):
             "a photo of 4 TVs in a line",
             "a photo of a tennis racket and a wine glass",
             "a photo of a tv and a bicycle",
-            "A blackboard with words 'Hello, ICML 2026' in the center.",
+            "A blackboard with words 'Hello, ICML 2026', no other words exist",
             "A photo of a purple backpack and a yellow unbrella.",
             "A whiteboard with 'Visual thinking without pixels' in the center.",
             "a photo of a red orange and a purple broccoli",
@@ -250,7 +250,7 @@ def generate(args):
     
     os.makedirs("asset/code", exist_ok=True)
     all_codes = torch.cat(all_generated_codes, dim=0)
-    code_path = f"asset/code/code_new_35000_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
+    code_path = f"asset/code/{exp_name}_{step}_{cfg_scale}_{tau}_{topk}_{topp}_{args.rewrite}.pt"
     torch.save(all_codes, code_path)
     print(f"All codes saved to {code_path}, shape: {all_codes.shape}")
 

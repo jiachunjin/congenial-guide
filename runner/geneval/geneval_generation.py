@@ -34,11 +34,14 @@ def generate(args):
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl_to_mixture(internvl, config.model)
-    ckpt_path = os.path.join(exp_dir, f"model-mcq_gen-{step}")
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    if "model" in ckpt:
-        ckpt = ckpt["model"]
-    internvl.load_state_dict(ckpt, strict=False)
+    ckpt_path = os.path.join(exp_dir, f"checkpoint-{step}/pytorch_model/mp_rank_00_model_states.pt")
+    # ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    # if "model" in ckpt:
+    #     ckpt = ckpt["model"]
+    # ckpt_path = "/checkpoint-35000/pytorch_model/mp_rank_00_model_states.pt"
+    ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
+    m, u = internvl.load_state_dict(ckpt, strict=False)
+    print(f"unused keys: {u}")
     internvl = internvl.to(device, dtype).eval()
 
     quantizer = get_multi_vq_quantizer(config.model.quantizer)
