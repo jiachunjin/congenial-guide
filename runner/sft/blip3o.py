@@ -42,23 +42,21 @@ class MyTrainer(Trainer):
         self.tokenizer = tokenizer
 
     def _load_dataloader(self):
-        from util.dataloader import get_blip3o_60k_dataloader
-        self.dataloader = get_blip3o_60k_dataloader(self.config.data, self.tokenizer)
+        from util.dataloader import get_blip3o_60k_dataloader, get_blip3o_echo_4o_dataloader
+        if "echo4o_instruction_path" in self.config.data:
+            self.dataloader = get_blip3o_echo_4o_dataloader(self.config.data, self.tokenizer)
+        else:
+            self.dataloader = get_blip3o_60k_dataloader(self.config.data, self.tokenizer)
 
     def train(self):
         self.model, self.dataloader, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.dataloader, self.optimizer, self.scheduler)
-
-        # if hasattr(self, '_resume_checkpoint_dir') and self._resume_checkpoint_dir is not None:
-        #     self.accelerator.load_state(self._resume_checkpoint_dir)
-        #     self.accelerator.print(f"Checkpoint loaded from {self._resume_checkpoint_dir}")
 
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)
         imagenet_mean = torch.tensor(IMAGENET_MEAN, device=self.accelerator.device, dtype=self.dtype).view(1, 3, 1, 1)
         imagenet_std = torch.tensor(IMAGENET_STD, device=self.accelerator.device, dtype=self.dtype).view(1, 3, 1, 1)
-        training_done = False
 
-        while not training_done:
+        for _ in range(self.config.train.num_epochs):
             for batch in self.dataloader:
                 with self.accelerator.accumulate(self.model):
                     self.model.train()
@@ -120,17 +118,12 @@ class MyTrainer(Trainer):
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
 
-                        if self.global_step > 0 and self.global_step % self.config.train.save_every == 0:
-                            self.accelerator.wait_for_everyone()
-                            self.accelerator.save_state(os.path.join(self.output_dir, f"checkpoint-{self.global_step}"))
-
-                        if self.global_step >= self.config.train.num_iter:
-                            training_done = True
-                            break
-
             self.epoch += 1
             self.accelerator.print(f"epoch {self.epoch}: finished")
             self.accelerator.log({"epoch": self.epoch}, step=self.global_step)
+            # save every epoch
+            self.accelerator.wait_for_everyone()
+            self.accelerator.save_state(os.path.join(self.output_dir, f"checkpoint-{self.global_step}"))
 
         self.accelerator.end_training()
 

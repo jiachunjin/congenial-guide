@@ -280,3 +280,127 @@ def get_blip3o_60k_dataloader(config, tokenizer):
     )
 
     return dataloader
+
+def get_blip3o_echo_4o_dataloader(config, tokenizer):
+    import os
+    import json
+    import glob
+    import torchvision.transforms as pth_transforms
+    from datasets import concatenate_datasets
+    from functools import partial
+    from datasets import load_dataset
+
+    def load_metadata_map(jsonl_path):
+        meta_map = {}
+        with open(jsonl_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                item = json.loads(line)
+                file_id = os.path.splitext(os.path.basename(item['output_image']))[0]
+                meta_map[file_id] = item['instruction']
+        return meta_map
+
+    def add_instruction(example, meta_map):
+        key = example["__key__"]
+        if key in meta_map:
+            example["txt"] = meta_map[key]
+        else:
+            example["txt"] = "" 
+        return example
+
+    BLIP3o_60k_data_files = glob.glob(os.path.join(config.BLIP3o_60k_path, "*.tar"))
+    BLIP3o_60k_dataset = load_dataset("webdataset", data_files=BLIP3o_60k_data_files, cache_dir=config.BLIP3o_60k_path, split="train", num_proc=32)
+
+    echo4o_instruction_files = glob.glob(os.path.join(config.echo4o_instruction_path, "*.tar.gz"))
+    echo4o_instruction_dataset = load_dataset("webdataset", data_files=echo4o_instruction_files, cache_dir=config.echo4o_instruction_path, split="train", num_proc=32)
+
+    echo4o_fantacy_files = glob.glob(os.path.join(config.echo4o_fantacy_path, "*.tar.gz"))
+    echo4o_fantacy_dataset = load_dataset("webdataset", data_files=echo4o_fantacy_files, cache_dir=config.echo4o_fantacy_path, split="train", num_proc=32)
+
+    echo4o_instruction_meta_map = load_metadata_map(config.echo4o_instruction_jsonl)
+    echo4o_fantacy_meta_map = load_metadata_map(config.echo4o_fantacy_jsonl)
+
+    echo4o_instruction_dataset = echo4o_instruction_dataset.map(
+        partial(add_instruction, meta_map=echo4o_instruction_meta_map),
+        writer_batch_size=100,  # 减小 batch size 避免 offset overflow
+        num_proc=1,  # 使用单进程避免多进程问题
+        load_from_cache_file=False  # 禁用缓存，避免缓存问题
+    )
+    echo4o_fantacy_dataset = echo4o_fantacy_dataset.map(
+        partial(add_instruction, meta_map=echo4o_fantacy_meta_map),
+        writer_batch_size=100,  # 减小 batch size 避免 offset overflow
+        num_proc=1,  # 使用单进程避免多进程问题
+        load_from_cache_file=False  # 禁用缓存，避免缓存问题
+    )
+
+    combined_dataset = concatenate_datasets([BLIP3o_60k_dataset, echo4o_instruction_dataset, echo4o_fantacy_dataset])
+    print(f"BLIP3o_60k_dataset size: {len(BLIP3o_60k_dataset)}")
+    print(f"echo4o_instruction size: {len(echo4o_instruction_dataset)}")
+    print(f"echo4o_fantacy size: {len(echo4o_fantacy_dataset)}")
+    print(f"combined_dataset size: {len(combined_dataset)}")
+
+    preprocess_gen = pth_transforms.Compose([
+        pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
+        pth_transforms.Resize(config.img_size, max_size=None),
+        pth_transforms.CenterCrop(config.img_size),
+        pth_transforms.ToTensor(),
+    ])
+
+    def preprocess_image(image):
+        pixel_values = preprocess_gen(image)
+
+        return pixel_values
+
+    def preprocess_text(text):
+        IMG_START_TOKEN = "<img>"
+        prompt = text + IMG_START_TOKEN
+
+        tokenizer_output = tokenizer(
+            prompt,
+            return_tensors = "pt",
+            padding        = "max_length",
+            padding_side   = "left",
+            truncation     = True,
+            max_length     = config.max_seq_length - config.num_img_token,
+        )
+        input_ids = tokenizer_output["input_ids"]
+        if random.random() < config.cfg_drop_rate:
+            input_ids[:, 1:-1] = tokenizer.pad_token_id
+        attention_mask = tokenizer_output["attention_mask"]
+
+        return input_ids, attention_mask
+
+    def collate_fn(batch):
+        pixel_values = []
+        input_ids_list = []
+        attention_mask_list = []
+
+        for sample in batch:
+            pixel_value = preprocess_image(sample["jpg"])
+            pixel_values.append(pixel_value)
+
+            text = sample["txt"]
+            input_ids, attention_mask = preprocess_text(text)
+            input_ids_list.append(input_ids[0])
+            attention_mask_list.append(attention_mask[0])
+        
+        pixel_values = torch.stack(pixel_values)
+        input_ids = torch.stack(input_ids_list)
+        attention_mask = torch.stack(attention_mask_list)
+
+        return {
+            "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        }
+
+    dataloader = DataLoader(
+        combined_dataset,
+        batch_size  = config.batch_size,
+        shuffle     = True,
+        num_workers = config.num_workers,
+        pin_memory  = True,
+        drop_last   = True,
+        collate_fn  = collate_fn,
+    )
+
+    return dataloader
