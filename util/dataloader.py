@@ -204,3 +204,79 @@ def get_blip3o_dataloader_janus(config, preprocessor, accelerator):
     )
 
     return dataloader
+
+def get_blip3o_60k_dataloader(config, tokenizer):
+    import os
+    import glob
+    import torchvision.transforms as pth_transforms
+    from datasets import load_dataset
+
+    data_files = glob.glob(os.path.join(config.wds_path, "*.tar"))
+    BLIP3o_60k_dataset = load_dataset("webdataset", data_files=data_files, cache_dir=config.cache_dir, split="train", num_proc=32)
+
+    preprocess_gen = pth_transforms.Compose([
+        pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
+        pth_transforms.Resize(config.img_size, max_size=None),
+        pth_transforms.CenterCrop(config.img_size),
+        pth_transforms.ToTensor(),
+    ])
+
+    def preprocess_image(image):
+        pixel_values = preprocess_gen(image)
+
+        return pixel_values
+
+    def preprocess_text(text):
+        IMG_START_TOKEN = "<img>"
+        prompt = text + IMG_START_TOKEN
+
+        tokenizer_output = tokenizer(
+            prompt,
+            return_tensors = "pt",
+            padding        = "max_length",
+            padding_side   = "left",
+            truncation     = True,
+            max_length     = config.max_seq_length - config.num_img_token,
+        )
+        input_ids = tokenizer_output["input_ids"]
+        if random.random() < config.cfg_drop_rate:
+            input_ids[:, 1:-1] = tokenizer.pad_token_id
+        attention_mask = tokenizer_output["attention_mask"]
+
+        return input_ids, attention_mask
+
+    def collate_fn(batch):
+        pixel_values = []
+        input_ids_list = []
+        attention_mask_list = []
+
+        for sample in batch:
+            pixel_value = preprocess_image(sample["jpg"])
+            pixel_values.append(pixel_value)
+
+            text = sample["txt"]
+            input_ids, attention_mask = preprocess_text(text)
+            input_ids_list.append(input_ids[0])
+            attention_mask_list.append(attention_mask[0])
+        
+        pixel_values = torch.stack(pixel_values)
+        input_ids = torch.stack(input_ids_list)
+        attention_mask = torch.stack(attention_mask_list)
+
+        return {
+            "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        }
+
+    dataloader = torch.utils.data.DataLoader(
+        BLIP3o_60k_dataset,
+        batch_size  = config.batch_size,
+        shuffle     = True,
+        num_workers = config.num_workers,
+        pin_memory  = True,
+        drop_last   = True,
+        collate_fn  = collate_fn,
+    )
+
+    return dataloader

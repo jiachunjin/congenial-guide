@@ -60,9 +60,7 @@ class Trainer:
     def _load_dataloader(self):
         raise NotImplementedError
 
-    def _load_optimizer(self):
-        from transformers import get_cosine_schedule_with_warmup
-        
+    def _load_optimizer(self):        
         self.params_to_learn = list(p for p in self.model.parameters() if p.requires_grad)
         self.optimizer = torch.optim.AdamW(
             self.params_to_learn,
