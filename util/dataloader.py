@@ -288,6 +288,8 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
     import torchvision.transforms as pth_transforms
     from datasets import concatenate_datasets, load_dataset
 
+    use_echo_fantacy = "echo4o_fantacy_path" in config
+
     def load_metadata_map(jsonl_path):
         meta_map = {}
         with open(jsonl_path, 'r', encoding='utf-8') as f:
@@ -303,22 +305,28 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
     echo4o_instruction_files = glob.glob(os.path.join(config.echo4o_instruction_path, "*.tar.gz"))
     echo4o_instruction_dataset = load_dataset("webdataset", data_files=echo4o_instruction_files, cache_dir=config.echo4o_instruction_path, split="train", num_proc=32)
 
-    echo4o_fantacy_files = glob.glob(os.path.join(config.echo4o_fantacy_path, "*.tar.gz"))
-    echo4o_fantacy_dataset = load_dataset("webdataset", data_files=echo4o_fantacy_files, cache_dir=config.echo4o_fantacy_path, split="train", num_proc=32)
+    if use_echo_fantacy:
+        echo4o_fantacy_files = glob.glob(os.path.join(config.echo4o_fantacy_path, "*.tar.gz"))
+        echo4o_fantacy_dataset = load_dataset("webdataset", data_files=echo4o_fantacy_files, cache_dir=config.echo4o_fantacy_path, split="train", num_proc=32)
+        echo4o_fantacy_meta_map = load_metadata_map(config.echo4o_fantacy_jsonl)
+        echo4o_fantacy_dataset = echo4o_fantacy_dataset.add_column("_source", ["fantacy"] * len(echo4o_fantacy_dataset))
 
     # 加载两个独立的 meta_map（key 可能重复，不能合并）
     echo4o_instruction_meta_map = load_metadata_map(config.echo4o_instruction_jsonl)
-    echo4o_fantacy_meta_map = load_metadata_map(config.echo4o_fantacy_jsonl)
 
     # 给数据集添加来源标记，用于在 collate_fn 中区分（add_column 比 .map() 快很多）
     BLIP3o_60k_dataset = BLIP3o_60k_dataset.add_column("_source", ["blip3o"] * len(BLIP3o_60k_dataset))
     echo4o_instruction_dataset = echo4o_instruction_dataset.add_column("_source", ["instruction"] * len(echo4o_instruction_dataset))
-    echo4o_fantacy_dataset = echo4o_fantacy_dataset.add_column("_source", ["fantacy"] * len(echo4o_fantacy_dataset))
 
-    combined_dataset = concatenate_datasets([BLIP3o_60k_dataset, echo4o_instruction_dataset, echo4o_fantacy_dataset])
+    if use_echo_fantacy:
+        combined_dataset = concatenate_datasets([BLIP3o_60k_dataset, echo4o_instruction_dataset, echo4o_fantacy_dataset])
+    else:
+        combined_dataset = concatenate_datasets([BLIP3o_60k_dataset, echo4o_instruction_dataset])
+
     print(f"BLIP3o_60k_dataset size: {len(BLIP3o_60k_dataset)}")
     print(f"echo4o_instruction size: {len(echo4o_instruction_dataset)}")
-    print(f"echo4o_fantacy size: {len(echo4o_fantacy_dataset)}")
+    if use_echo_fantacy:
+        print(f"echo4o_fantacy size: {len(echo4o_fantacy_dataset)}")
     print(f"combined_dataset size: {len(combined_dataset)}")
 
     preprocess_gen = pth_transforms.Compose([

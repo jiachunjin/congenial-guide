@@ -29,11 +29,11 @@ train:
 
   exp_name: &exp_name mcq_gen
   proj_name: *exp_name
-  output_dir: 1225_sft_echo4o_blip3o_tmp_newdataloaderlogic
+  output_dir: 1225_sft_echo4o_blip3o_genevalonly
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
-  report_to: null
+  report_to: swanlab
 
   lr: 5e-6
   use_scheduler: false
@@ -46,8 +46,8 @@ data:
   BLIP3o_60k_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
   echo4o_instruction_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Instruction-Following-Image/images
   echo4o_instruction_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Instruction-Following-Image/Instruction-Following-Image.jsonl
-  echo4o_fantacy_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/images
-  echo4o_fantacy_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/conflict.jsonl
+  # echo4o_fantacy_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/images
+  # echo4o_fantacy_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/conflict.jsonl
 
   img_size: 448
   cfg_drop_rate: 0.1
