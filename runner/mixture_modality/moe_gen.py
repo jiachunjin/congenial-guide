@@ -173,7 +173,7 @@ def generate(args):
             "An oil portrait: A young woman in a flower field at sunset, with mountains in the background."
         ]
     cfg_scale = args.cfg_scale
-    tau = 0.5
+    tau = 0.9
     topk = 50
     topp = 0.95
     sampling_kwargs = {

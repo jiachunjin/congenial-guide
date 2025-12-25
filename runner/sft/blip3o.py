@@ -23,8 +23,17 @@ class MyTrainer(Trainer):
         internvl = modify_internvl_to_mixture(internvl, self.config.model)
 
         if self.config.train.resume_path is not None:
-            self._resume_checkpoint_dir = self.config.train.resume_path
-            self.accelerator.print(f"Will resume from {self._resume_checkpoint_dir}")
+        #     self._resume_checkpoint_dir = self.config.train.resume_path
+        #     self.accelerator.print(f"Will resume from {self._resume_checkpoint_dir}")
+            ckpt_path = os.path.join(self.config.train.resume_path, "pytorch_model/mp_rank_00_model_states.pt")
+            # ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            # if "model" in ckpt:
+            #     ckpt = ckpt["model"]
+            # ckpt_path = "/checkpoint-35000/pytorch_model/mp_rank_00_model_states.pt"
+            ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
+            m, u = internvl.load_state_dict(ckpt, strict=False)
+            print(f"unused keys: {u}")
+
 
         tokenizer = AutoTokenizer.from_pretrained(self.config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
@@ -39,9 +48,9 @@ class MyTrainer(Trainer):
     def train(self):
         self.model, self.dataloader, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.dataloader, self.optimizer, self.scheduler)
 
-        if hasattr(self, '_resume_checkpoint_dir') and self._resume_checkpoint_dir is not None:
-            self.accelerator.load_state(self._resume_checkpoint_dir)
-            self.accelerator.print(f"Checkpoint loaded from {self._resume_checkpoint_dir}")
+        # if hasattr(self, '_resume_checkpoint_dir') and self._resume_checkpoint_dir is not None:
+        #     self.accelerator.load_state(self._resume_checkpoint_dir)
+        #     self.accelerator.print(f"Checkpoint loaded from {self._resume_checkpoint_dir}")
 
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)

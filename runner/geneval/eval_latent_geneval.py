@@ -23,7 +23,7 @@ def eval_latent_geneval(args):
     exp_dir = args.exp_dir
     exp_name = args.exp_dir.split("/")[-1]
     step = args.step
-    geneval_path = f"asset/geneval/1224_new_save/{step}"
+    geneval_path = f"asset/geneval/{exp_name}/{step}"
 
     # load latent geneval questions
     with open("evaluation/generation/geneval/correct_answers.jsonl", "r") as f:
@@ -56,7 +56,7 @@ def eval_latent_geneval(args):
 
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
-    with open(f"asset/geneval/latent_results/results_{step}.jsonl", "w") as results_file:
+    with open(f"asset/geneval/latent_results/results_{exp_name}_{step}.jsonl", "w") as results_file:
         for json_line in json_lines:
             index = json_line["index"]
             question = json_line["question"]

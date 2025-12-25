@@ -23,7 +23,7 @@ model:
     mlp_ratio: 4.0
 
 train:
-  root: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment
+  root: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/experiment
   resume_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/experiment/hdd_exp/1224_new_save/checkpoint-170000
   global_step: 0
 
@@ -36,19 +36,19 @@ train:
   report_to: swanlab
 
   lr: 5e-6
-  use_scheduler: true
-  warmup_steps: 100
-  min_lr: 1e-6
-  num_iter: 1000000
-  save_every: 5000
+  use_scheduler: false
+  warmup_steps: 500
+  min_lr: 5e-6
+  num_iter: 20000
+  save_every: 1000
 
 data:
-  wds_path: /home/jiachun/dataset/BLIP3o/BLIP3o-60k
-  cache_dir: /home/jiachun/dataset/BLIP3o/BLIP3o-60k
+  wds_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
+  cache_dir: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
   img_size: 448
   cfg_drop_rate: 0.1
   num_img_token: 256
   max_seq_length: 320
-  buffer_size: 100
-  batch_size: 2
+  buffer_size: 5000
+  batch_size: 12
   num_workers: 8
