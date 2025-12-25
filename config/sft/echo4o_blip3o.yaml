@@ -29,17 +29,18 @@ train:
 
   exp_name: &exp_name mcq_gen
   proj_name: *exp_name
-  output_dir: 1225_sft_echo4o_blip3o
+  output_dir: 1225_sft_echo4o_blip3o_tmp_newdataloaderlogic
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
-  report_to: swanlab
+  report_to: null
 
   lr: 5e-6
   use_scheduler: false
-  warmup_steps: 500
-  min_lr: 5e-6
+  warmup_steps: 500 # not used
+  min_lr: 5e-6 # not used
   num_epochs: 3
+  num_iter: 100000 # not used
 
 data:
   BLIP3o_60k_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k

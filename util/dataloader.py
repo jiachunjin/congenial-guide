@@ -286,9 +286,7 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
     import json
     import glob
     import torchvision.transforms as pth_transforms
-    from datasets import concatenate_datasets
-    from functools import partial
-    from datasets import load_dataset
+    from datasets import concatenate_datasets, load_dataset
 
     def load_metadata_map(jsonl_path):
         meta_map = {}
@@ -299,14 +297,6 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
                 meta_map[file_id] = item['instruction']
         return meta_map
 
-    def add_instruction(example, meta_map):
-        key = example["__key__"]
-        if key in meta_map:
-            example["txt"] = meta_map[key]
-        else:
-            example["txt"] = "" 
-        return example
-
     BLIP3o_60k_data_files = glob.glob(os.path.join(config.BLIP3o_60k_path, "*.tar"))
     BLIP3o_60k_dataset = load_dataset("webdataset", data_files=BLIP3o_60k_data_files, cache_dir=config.BLIP3o_60k_path, split="train", num_proc=32)
 
@@ -316,21 +306,14 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
     echo4o_fantacy_files = glob.glob(os.path.join(config.echo4o_fantacy_path, "*.tar.gz"))
     echo4o_fantacy_dataset = load_dataset("webdataset", data_files=echo4o_fantacy_files, cache_dir=config.echo4o_fantacy_path, split="train", num_proc=32)
 
+    # 加载两个独立的 meta_map（key 可能重复，不能合并）
     echo4o_instruction_meta_map = load_metadata_map(config.echo4o_instruction_jsonl)
     echo4o_fantacy_meta_map = load_metadata_map(config.echo4o_fantacy_jsonl)
 
-    echo4o_instruction_dataset = echo4o_instruction_dataset.map(
-        partial(add_instruction, meta_map=echo4o_instruction_meta_map),
-        writer_batch_size=100,  # 减小 batch size 避免 offset overflow
-        num_proc=1,  # 使用单进程避免多进程问题
-        load_from_cache_file=False  # 禁用缓存，避免缓存问题
-    )
-    echo4o_fantacy_dataset = echo4o_fantacy_dataset.map(
-        partial(add_instruction, meta_map=echo4o_fantacy_meta_map),
-        writer_batch_size=100,  # 减小 batch size 避免 offset overflow
-        num_proc=1,  # 使用单进程避免多进程问题
-        load_from_cache_file=False  # 禁用缓存，避免缓存问题
-    )
+    # 给数据集添加来源标记，用于在 collate_fn 中区分（add_column 比 .map() 快很多）
+    BLIP3o_60k_dataset = BLIP3o_60k_dataset.add_column("_source", ["blip3o"] * len(BLIP3o_60k_dataset))
+    echo4o_instruction_dataset = echo4o_instruction_dataset.add_column("_source", ["instruction"] * len(echo4o_instruction_dataset))
+    echo4o_fantacy_dataset = echo4o_fantacy_dataset.add_column("_source", ["fantacy"] * len(echo4o_fantacy_dataset))
 
     combined_dataset = concatenate_datasets([BLIP3o_60k_dataset, echo4o_instruction_dataset, echo4o_fantacy_dataset])
     print(f"BLIP3o_60k_dataset size: {len(BLIP3o_60k_dataset)}")
@@ -378,7 +361,16 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
             pixel_value = preprocess_image(sample["jpg"])
             pixel_values.append(pixel_value)
 
-            text = sample["txt"]
+            # 根据来源选择对应的 meta_map 动态查找 instruction
+            source = sample.get("_source")
+            key = sample.get("__key__")
+            if source == "instruction" and key in echo4o_instruction_meta_map:
+                text = echo4o_instruction_meta_map[key]
+            elif source == "fantacy" and key in echo4o_fantacy_meta_map:
+                text = echo4o_fantacy_meta_map[key]
+            else:
+                text = sample.get("txt", "")
+            
             input_ids, attention_mask = preprocess_text(text)
             input_ids_list.append(input_ids[0])
             attention_mask_list.append(attention_mask[0])
