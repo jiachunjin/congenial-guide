@@ -33,7 +33,7 @@ def reconstruct(args):
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl_to_mixture(internvl, config.model)
-    ckpt_path = os.path.join(exp_dir, f"checkpoint-{step}/pytorch_model/mp_rank_00_model_states.pt")
+    ckpt_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1225_sft_echo4o_blip3o_genevalonly/checkpoint-3963/pytorch_model/mp_rank_00_model_states.pt"
     ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
 
     m, u = internvl.load_state_dict(ckpt, strict=False)
@@ -46,14 +46,41 @@ def reconstruct(args):
     quantizer.load_state_dict(ckpt, strict=True)
     quantizer = quantizer.to(device, dtype).eval()
 
-    origin_img_path = args.origin_img_path
-    origin_img = Image.open(origin_img_path)
-    pixel_value = load_image(origin_img, max_num=12).to(device, dtype)
-    vit_feature = internvl.get_vit_feature(pixel_value)
-    print(f"pixel_value.shape: {pixel_value.shape}, vit_feature.shape: {vit_feature.shape}")
+    # origin_img_path = args.origin_img_path
+    # origin_img = Image.open(origin_img_path)
+    # pixel_value = load_image(origin_img, max_num=12).to(device, dtype)
+    # vit_feature = internvl.mlp1(internvl.get_vit_feature(pixel_value)) # (1, 256, 2560)
+    # print(f"pixel_value.shape: {pixel_value.shape}, vit_feature.shape: {vit_feature.shape}")
+    # vae_transform = pth_transforms.Compose([
+    #     pth_transforms.Resize(448, max_size=None),
+    #     pth_transforms.CenterCrop(448),
+    #     pth_transforms.ToTensor(),
+    # ])
+
+    images = [
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/messi.webp").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/非常厉害.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/shapes.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/english.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/ad.jpeg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/ad_eng.webp").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/jay.jpg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/jay2.jpeg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/book.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/norris.png").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/taylor.jpg").convert("RGB"),
+        Image.open("/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/codebase/congenial-guide/asset/img/usa.jpg").convert("RGB"),
+    ]
+    pixel_values = []
+    for img in images:
+        pixel_values.append(load_image(img).to(device, dtype))
+    pixel_values = torch.cat(pixel_values, dim=0)
+    print(f"pixel_values.shape: {pixel_values.shape}")
+    vit_feature = internvl.mlp1(internvl.get_vit_feature(pixel_values))
+    print(f"pixel_values.shape: {pixel_values.shape}, vit_feature.shape: {vit_feature.shape}")
 
     prompt = "Reconstruct this image: " + IMG_START_TOKEN + IMG_CONTEXT_TOKEN * 256 + IMG_END_TOKEN + IMG_START_TOKEN
-    batch_prompts = [prompt] * args.batch_size
+    batch_prompts = [prompt] * len(images)
     
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
     tokenizer_output = tokenizer(
@@ -72,8 +99,8 @@ def reconstruct(args):
     text_embedding = text_embedding.reshape(B * N, C)
 
     img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
-    input_ids = input_ids.reshape(B * N)
-    selected = (input_ids == img_context_token_id)
+    input_ids_flatten = input_ids.reshape(B * N)
+    selected = (input_ids_flatten == img_context_token_id)
     assert selected.sum() != 0
     text_embedding[selected] = vit_feature.reshape(-1, C).to(device)
     text_embedding = text_embedding.reshape(B, N, C)
