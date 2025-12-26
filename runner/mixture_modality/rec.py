@@ -33,7 +33,8 @@ def reconstruct(args):
 
     internvl = InternVLChatModel.from_pretrained(config.model.internvl_path)
     internvl = modify_internvl_to_mixture(internvl, config.model)
-    ckpt_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1225_sft_echo4o_blip3o_genevalonly/checkpoint-3963/pytorch_model/mp_rank_00_model_states.pt"
+    # ckpt_path = "/inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1225_sft_echo4o_blip3o_genevalonly/checkpoint-3963/pytorch_model/mp_rank_00_model_states.pt"
+    ckpt_path = os.path.join(exp_dir, f"checkpoint-{step}/pytorch_model/mp_rank_00_model_states.pt")
     ckpt = torch.load(ckpt_path, map_location="cpu")["module"]
 
     m, u = internvl.load_state_dict(ckpt, strict=False)
@@ -75,11 +76,9 @@ def reconstruct(args):
     for img in images:
         pixel_values.append(load_image(img).to(device, dtype))
     pixel_values = torch.cat(pixel_values, dim=0)
-    print(f"pixel_values.shape: {pixel_values.shape}")
     vit_feature = internvl.mlp1(internvl.get_vit_feature(pixel_values))
-    print(f"pixel_values.shape: {pixel_values.shape}, vit_feature.shape: {vit_feature.shape}")
 
-    prompt = "Reconstruct this image: " + IMG_START_TOKEN + IMG_CONTEXT_TOKEN * 256 + IMG_END_TOKEN + IMG_START_TOKEN
+    prompt = IMG_START_TOKEN + IMG_CONTEXT_TOKEN * 256 + IMG_END_TOKEN + "\n" + "Describe this image in detail." + IMG_START_TOKEN
     batch_prompts = [prompt] * len(images)
     
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
@@ -93,7 +92,6 @@ def reconstruct(args):
 
     input_ids = torch.LongTensor(tokenizer_output["input_ids"]).to(device)
     text_embedding = internvl.language_model.get_input_embeddings()(input_ids)
-    print(f"text_embedding.shape: {text_embedding.shape}")
 
     B, N, C = text_embedding.shape
     text_embedding = text_embedding.reshape(B * N, C)
@@ -171,7 +169,9 @@ def reconstruct(args):
     generated_code = torch.stack(generated_codes, dim=1).cpu() # (B, L, K)
     print(generated_code.shape)
 
-    torch.save(generated_code, "./rec_code.pt")
+    save_path = f"asset/code/rec_code_{exp_name}_{step}.pt"
+    torch.save(generated_code, save_path)
+    print(f"rec code saved to {save_path}")
 
 if __name__ == "__main__":
     import argparse
@@ -179,8 +179,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_dir", type=str, required=True)
     parser.add_argument("--step", type=int, required=True)
     parser.add_argument("--cfg_scale", type=float, default=3.0)
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--origin_img_path", type=str, required=True)
+
     args = parser.parse_args()
 
     reconstruct(args)

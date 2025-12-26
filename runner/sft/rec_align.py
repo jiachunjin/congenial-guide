@@ -50,7 +50,8 @@ class MyTrainer(Trainer):
         IMG_START_TOKEN = "<img>"
         IMG_END_TOKEN = "</img>"
         IMG_CONTEXT_TOKEN = "<IMG_CONTEXT>"
-        prompt = "Reconstruct this image: " + IMG_START_TOKEN + IMG_CONTEXT_TOKEN * 256 + IMG_END_TOKEN + IMG_START_TOKEN
+        # prompt = "Reconstruct this image: " + IMG_START_TOKEN + IMG_CONTEXT_TOKEN * 256 + IMG_END_TOKEN + IMG_START_TOKEN
+        prompt = IMG_START_TOKEN + IMG_CONTEXT_TOKEN * 256 + IMG_END_TOKEN + "\n" + "Describe this image in detail." + IMG_START_TOKEN
 
         tokenizer_output = self.tokenizer(
             [prompt],
@@ -58,7 +59,7 @@ class MyTrainer(Trainer):
             padding_side   = "left",
             truncation     = True,
             return_tensors = "pt",
-        )["input_ids"]
+        )
         input_ids = torch.LongTensor(tokenizer_output["input_ids"]).to(self.device)
 
         while not training_done:
@@ -68,7 +69,7 @@ class MyTrainer(Trainer):
                     self.model.vision_model.eval()
 
                     pixel_values = batch["pixel_values"].to(self.device, self.dtype, non_blocking=True)
-                    attention_mask = batch["attention_mask"].to(self.device, non_blocking=True)
+                    # attention_mask = batch["attention_mask"].to(self.device, non_blocking=True)
 
                     x_gen = (pixel_values - imagenet_mean) / imagenet_std
 
@@ -81,7 +82,7 @@ class MyTrainer(Trainer):
                     V = self.config.model.head.num_embeddings
 
                     text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids).repeat(B, 1, 1)
-                    self.accelerator.print(f"text_embedding.shape: {text_embedding_t2i.shape}")
+
                     B, N, C = text_embedding_t2i.shape
                     text_embedding_t2i = text_embedding_t2i.reshape(B * N, C)
 
@@ -94,7 +95,7 @@ class MyTrainer(Trainer):
 
                     visual_embedding_t2i = self.model.visual_projector(z_q)
                     joint_embedding = torch.cat([text_embedding_t2i, visual_embedding_t2i], dim=1)
-                    attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
+                    # attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
 
                     L_txt = text_embedding_t2i.shape[1]
                     L_visual = visual_embedding_t2i.shape[1]
@@ -102,7 +103,7 @@ class MyTrainer(Trainer):
 
                     visual_hidden_states = self.model.language_model(
                         inputs_embeds        = joint_embedding,
-                        attention_mask       = attention_mask,
+                        attention_mask       = None,
                         vision_token_mask    = vision_token_mask,
                         output_hidden_states = True,
                     ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :] # (B, L, D)
