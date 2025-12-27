@@ -6,27 +6,6 @@ from PIL import Image
 from io import BytesIO
 import datasets
 
-def filter_corrupted_images(dataset, num_proc=32):
-    """过滤数据集中的损坏图像"""
-    # 暂时禁用自动解码以加快过滤速度
-    dataset = dataset.cast_column("jpg", datasets.Image(decode=False))
-
-    def is_valid_image(example):
-        try:
-            img_dict = example.get("jpg")
-            if not img_dict or "bytes" not in img_dict:
-                return False
-            # verify() 只读取头部信息，速度很快
-            Image.open(BytesIO(img_dict["bytes"])).verify()
-            return True
-        except Exception:
-            return False
-
-    dataset = dataset.filter(is_valid_image, num_proc=num_proc)
-    # 重新启用自动解码
-    dataset = dataset.cast_column("jpg", datasets.Image(decode=True))
-    return dataset
-
 def get_blip3o_validation_dataloader(config, tokenizer):
     journeydb_path = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB"
     long_path = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption"
@@ -50,55 +29,6 @@ def get_blip3o_validation_dataloader(config, tokenizer):
         os.path.join(short_path, "00214.tar"),
         os.path.join(short_path, "00562.tar"),
     ]
-    
-    # def count_images_in_tar(tar_path):
-    #     """统计tar文件中的图片数量（jpg/png）"""
-    #     if not os.path.exists(tar_path):
-    #         return 0
-    #     count = 0
-    #     try:
-    #         with tarfile.open(tar_path, 'r') as tar:
-    #             for member in tar.getmembers():
-    #                 name = member.name.lower()
-    #                 if name.endswith('.jpg') or name.endswith('.jpeg') or name.endswith('.png'):
-    #                     count += 1
-    #     except Exception as e:
-    #         print(f"Error reading {tar_path}: {e}")
-    #         return 0
-    #     return count
-    
-    # print("=" * 60)
-    # print("统计各个tar文件中的图片数量:")
-    # print("=" * 60)
-    
-    # print("\nJourneyDB tars:")
-    # journeydb_total = 0
-    # for tar_path in journeydb_tars:
-    #     count = count_images_in_tar(tar_path)
-    #     journeydb_total += count
-    #     print(f"  {os.path.basename(tar_path)}: {count} 张图片")
-    # print(f"  JourneyDB 总计: {journeydb_total} 张图片")
-    
-    # print("\nLong tars:")
-    # long_total = 0
-    # for tar_path in long_tars:
-    #     count = count_images_in_tar(tar_path)
-    #     long_total += count
-    #     print(f"  {os.path.basename(tar_path)}: {count} 张图片")
-    # print(f"  Long 总计: {long_total} 张图片")
-    
-    # print("\nShort tars:")
-    # short_total = 0
-    # for tar_path in short_tars:
-    #     count = count_images_in_tar(tar_path)
-    #     short_total += count
-    #     print(f"  {os.path.basename(tar_path)}: {count} 张图片")
-    # print(f"  Short 总计: {short_total} 张图片")
-    
-    # print("\n" + "=" * 60)
-    # print(f"全部总计: {journeydb_total + long_total + short_total} 张图片")
-    # print("=" * 60)
-
     # 合并所有tar文件
     all_tar_files = journeydb_tars + long_tars + short_tars
     
@@ -116,9 +46,6 @@ def get_blip3o_validation_dataloader(config, tokenizer):
         split="train", 
         num_proc=32
     )
-
-    print("Checking for corrupted images in validation set...")
-    validation_dataset = filter_corrupted_images(validation_dataset, num_proc=32)
     
     print(f"Validation dataset size: {len(validation_dataset)}")
     
@@ -601,11 +528,10 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
 if __name__ == "__main__":
     from transformers import AutoTokenizer
     from omegaconf import OmegaConf
-    config = OmegaConf.load("config/sft/echo4o_blip3o.yaml")
-    config.data.batch_size = 2
+    config = OmegaConf.load("config/sft/mix_data_with_val.yaml")
+    config.data.batch_size = 100
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
     dataloader = get_blip3o_validation_dataloader(config.data, tokenizer)
     for batch in dataloader:
         print(batch)
-        break
