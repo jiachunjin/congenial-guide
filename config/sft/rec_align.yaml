@@ -24,30 +24,35 @@ model:
 
 train:
   root: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/experiment
-  resume_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/experiment/hdd_exp/1225_sft_echo4o_blip3o_genevalonly/checkpoint-3963/
+  resume_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/experiment/hdd_exp/1225_sft_echo4o_blip3o_genevalonly/checkpoint-3963
   global_step: 0
 
   exp_name: &exp_name mcq_gen
   proj_name: *exp_name
-  output_dir: 1226_sft_rec_align_after3963
+  output_dir: 1227_rec_align_after_sft
   logging_dir: logs
   mixed_precision: bf16
   gradient_accumulation_steps: 1
   report_to: swanlab
 
-  lr: 4e-6
+  lr: 5e-6
   use_scheduler: false
-  warmup_steps: 500
-  min_lr: 5e-6
-  num_iter: 2000
-  save_every: 1000
+  warmup_steps: 500 # not used
+  min_lr: 5e-6 # not used
+  num_epochs: 5
+  num_iter: 100000 # not used
 
 data:
-  wds_path: [/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB]
+  BLIP3o_60k_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
+  echo4o_instruction_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Instruction-Following-Image/images
+  echo4o_instruction_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Instruction-Following-Image/Instruction-Following-Image.jsonl
+  # echo4o_fantacy_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/images
+  # echo4o_fantacy_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/conflict.jsonl
+
   img_size: 448
   cfg_drop_rate: 0.1
   num_img_token: 256
   max_seq_length: 320
-  buffer_size: 100000
-  batch_size: 16
+  buffer_size: 5000
+  batch_size: 12
   num_workers: 8

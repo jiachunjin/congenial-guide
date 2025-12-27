@@ -35,12 +35,12 @@ train:
   gradient_accumulation_steps: 1
   report_to: swanlab
 
-  lr: 5e-6
+  lr: 4e-6
   use_scheduler: false
   warmup_steps: 500
   min_lr: 5e-6
-  num_iter: 2000
-  save_every: 1000
+  num_iter: 100000
+  save_every: 5000
 
 data:
   wds_path: [/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/jackyhate/text-to-image-2M/data_1024_10K, /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/jackyhate/text-to-image-2M/data_512_2M]
