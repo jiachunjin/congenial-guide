@@ -136,7 +136,7 @@ class MyTrainer(Trainer):
                         )
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
-                    if self.global_step == 1 or self.global_step % self.config.train.val_every == 0:
+                    if self.global_step % self.config.train.val_every == 0:
                         # compute validation loss (多卡并行)
                         self.model.eval()
                         total_val_loss = torch.tensor(0.0, device=self.device)
@@ -147,7 +147,7 @@ class MyTrainer(Trainer):
                         with torch.no_grad():
                             for val_batch in self.val_dataloader:
                                 pixel_values = val_batch["pixel_values"].to(self.device, self.dtype, non_blocking=True)
-                                input_ids = val_batch["input_ids"].to(self.device, non_blocking=True)
+                                input_ids_val = val_batch["input_ids"].to(self.device, non_blocking=True)
                                 attention_mask = val_batch["attention_mask"].to(self.device, non_blocking=True)
 
                                 x_gen = (pixel_values - imagenet_mean) / imagenet_std
@@ -157,7 +157,7 @@ class MyTrainer(Trainer):
 
                                 B, L, _ = code.shape
 
-                                text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
+                                text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids_val)
                                 visual_embedding_t2i = self.model.visual_projector(z_q)
                                 joint_embedding = torch.cat([text_embedding_t2i, visual_embedding_t2i], dim=1)
                                 val_attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)

@@ -41,6 +41,7 @@ train:
   min_lr: 5e-6 # not used
   num_epochs: 5
   num_iter: 100000 # not used
+  val_every: 200
 
 data:
   BLIP3o_60k_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
@@ -54,5 +55,6 @@ data:
   num_img_token: 256
   max_seq_length: 320
   buffer_size: 5000
-  batch_size: 12
+  batch_size: 8
+  val_batch_size: 64
   num_workers: 8

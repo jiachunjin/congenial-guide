@@ -1,7 +1,7 @@
 #!/bin/bash
 accelerate launch runner/mixture_modality/moe_gen.py \
---exp_dir /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/hdd_exp/1226_sft_rec_align \
---step 1000 \
+--exp_dir /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/experiment/hdd_exp/1227_t2i_with_recA \
+--step 5000 \
 --cfg_scale 3.0 \
 --batch_size 4
 
