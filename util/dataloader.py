@@ -2,6 +2,30 @@ import os
 import random
 from torch.utils.data import DataLoader
 import torch
+from PIL import Image
+from io import BytesIO
+import datasets
+
+def filter_corrupted_images(dataset, num_proc=32):
+    """过滤数据集中的损坏图像"""
+    # 暂时禁用自动解码以加快过滤速度
+    dataset = dataset.cast_column("jpg", datasets.Image(decode=False))
+
+    def is_valid_image(example):
+        try:
+            img_dict = example.get("jpg")
+            if not img_dict or "bytes" not in img_dict:
+                return False
+            # verify() 只读取头部信息，速度很快
+            Image.open(BytesIO(img_dict["bytes"])).verify()
+            return True
+        except Exception:
+            return False
+
+    dataset = dataset.filter(is_valid_image, num_proc=num_proc)
+    # 重新启用自动解码
+    dataset = dataset.cast_column("jpg", datasets.Image(decode=True))
+    return dataset
 
 def get_blip3o_validation_dataloader(config, tokenizer):
     journeydb_path = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB"
@@ -92,6 +116,9 @@ def get_blip3o_validation_dataloader(config, tokenizer):
         split="train", 
         num_proc=32
     )
+
+    print("Checking for corrupted images in validation set...")
+    validation_dataset = filter_corrupted_images(validation_dataset, num_proc=32)
     
     print(f"Validation dataset size: {len(validation_dataset)}")
     
@@ -373,6 +400,9 @@ def get_blip3o_60k_dataloader(config, tokenizer):
 
     data_files = glob.glob(os.path.join(config.wds_path, "*.tar"))
     BLIP3o_60k_dataset = load_dataset("webdataset", data_files=data_files, cache_dir=config.cache_dir, split="train", num_proc=32)
+    
+    print("Checking for corrupted images in BLIP3o_60k dataset...")
+    BLIP3o_60k_dataset = filter_corrupted_images(BLIP3o_60k_dataset, num_proc=32)
 
     preprocess_gen = pth_transforms.Compose([
         pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
@@ -461,13 +491,16 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
 
     BLIP3o_60k_data_files = glob.glob(os.path.join(config.BLIP3o_60k_path, "*.tar"))
     BLIP3o_60k_dataset = load_dataset("webdataset", data_files=BLIP3o_60k_data_files, cache_dir=config.BLIP3o_60k_path, split="train", num_proc=32)
+    BLIP3o_60k_dataset = filter_corrupted_images(BLIP3o_60k_dataset, num_proc=32)
 
     echo4o_instruction_files = glob.glob(os.path.join(config.echo4o_instruction_path, "*.tar.gz"))
     echo4o_instruction_dataset = load_dataset("webdataset", data_files=echo4o_instruction_files, cache_dir=config.echo4o_instruction_path, split="train", num_proc=32)
+    echo4o_instruction_dataset = filter_corrupted_images(echo4o_instruction_dataset, num_proc=32)
 
     if use_echo_fantacy:
         echo4o_fantacy_files = glob.glob(os.path.join(config.echo4o_fantacy_path, "*.tar.gz"))
         echo4o_fantacy_dataset = load_dataset("webdataset", data_files=echo4o_fantacy_files, cache_dir=config.echo4o_fantacy_path, split="train", num_proc=32)
+        echo4o_fantacy_dataset = filter_corrupted_images(echo4o_fantacy_dataset, num_proc=32)
         echo4o_fantacy_meta_map = load_metadata_map(config.echo4o_fantacy_jsonl)
         echo4o_fantacy_dataset = echo4o_fantacy_dataset.add_column("_source", ["fantacy"] * len(echo4o_fantacy_dataset))
 
