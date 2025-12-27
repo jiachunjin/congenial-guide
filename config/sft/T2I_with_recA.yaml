@@ -47,7 +47,7 @@ data:
   img_size: 448
   cfg_drop_rate: 0.1
   num_img_token: 256
-  max_seq_length: 360
-  buffer_size: 100000
-  batch_size: 8
-  num_workers: 8
+  max_seq_length: 572
+  buffer_size: 50000
+  batch_size: 4
+  num_workers: 2

@@ -75,10 +75,95 @@ class MyTrainer(Trainer):
 
                     x_gen = (pixel_values - imagenet_mean) / imagenet_std
 
-                    print(rec_input_ids.shape, input_ids.shape)
-                    print(rec_attention_mask.shape, attention_mask.shape)
-                    exit(0)
-                    break
+                    with torch.no_grad():
+                        vit_feature = self.model.get_vit_feature(x_gen)
+                        z_q, code = self.quantizer.get_zq_indices(vit_feature)
+                        original_visual_embedding = self.model.mlp1(vit_feature)
+
+                    B, L, _ = code.shape
+                    V = self.config.model.head.num_embeddings
+                    # ----- prepare RecA textual embeddings -----
+                    text_embedding_rec = self.model.language_model.get_input_embeddings()(rec_input_ids).repeat(B, 1, 1)
+                    B, N, C = text_embedding_rec.shape
+                    text_embedding_rec = text_embedding_rec.reshape(B * N, C)
+                    img_context_token_id = self.tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
+                    rec_input_ids_flatten = rec_input_ids.repeat(B, 1).reshape(B * N)
+                    selected = (rec_input_ids_flatten == img_context_token_id)
+                    assert selected.sum() != 0
+                    text_embedding_rec[selected] = original_visual_embedding.reshape(-1, C).to(self.device)
+                    text_embedding_rec = text_embedding_rec.reshape(B, N, C)
+                    visual_embedding_t2i = self.model.visual_projector(z_q)
+
+                    joint_embedding_rec = torch.cat([text_embedding_rec, visual_embedding_t2i], dim=1)
+                    attention_mask_rec = torch.cat([rec_attention_mask.repeat(B, 1), torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
+
+                    text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
+                    visual_embedding_t2i = self.model.visual_projector(z_q)
+                    joint_embedding_t2i = torch.cat([text_embedding_t2i, visual_embedding_t2i], dim=1)
+                    attention_mask_t2i = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
+
+                    L_txt = text_embedding_t2i.shape[1]
+                    L_visual = visual_embedding_t2i.shape[1]
+                    B_orig = B
+                    B = B * 2
+                    code = code.repeat(2, 1, 1)
+                    vision_token_mask = torch.cat([torch.zeros(B, L_txt-1), torch.ones(B, L_visual+1)], dim=1).to(self.device, dtype=self.dtype)
+                    visual_hidden_states = self.model.language_model(
+                        inputs_embeds        = torch.cat([joint_embedding_rec, joint_embedding_t2i], dim=0),
+                        attention_mask       = torch.cat([attention_mask_rec, attention_mask_t2i], dim=0),
+                        vision_token_mask    = vision_token_mask,
+                        output_hidden_states = True,
+                    ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :] # (B, L, D)
+
+                    prefix = rearrange(visual_hidden_states, "B L D -> (B L) 1 D")
+                    head_visual_embeddings = self.model.ar_head._code_to_embeddings(code) # (BxL, K, D)
+                    h = torch.cat((prefix, head_visual_embeddings), dim=1) # (BxL, K+1, D)
+
+                    logits = self.model.ar_head(h[:, :-1, :]) # (BxL, K, V)
+                    logits = rearrange(logits, "(B L) K V -> B L K V", B=B, L=L)
+                    
+                    # 切分为 REC 和 T2I 两部分
+                    logits_rec, logits_t2i = logits[:B_orig], logits[B_orig:]
+                    code_rec, code_t2i = code[:B_orig], code[B_orig:]
+                    
+                    loss_rec = torch.nn.functional.cross_entropy(logits_rec.reshape(-1, V), code_rec.reshape(-1))
+                    loss_t2i = torch.nn.functional.cross_entropy(logits_t2i.reshape(-1, V), code_t2i.reshape(-1))
+                    loss = (loss_rec + loss_t2i) / 2
+
+                    self.accelerator.backward(loss)
+
+                    if self.accelerator.sync_gradients:
+                        grad_norm = self.accelerator.clip_grad_norm_(self.params_to_learn, 1.0)
+                        self.optimizer.step()
+                        self.scheduler.step()
+                        self.optimizer.zero_grad()
+
+                        self.global_step += 1
+                        self.progress_bar.update(1)
+
+                        logs = dict(
+                            loss_CE = self.accelerator.gather(loss.detach()).mean().item(),
+                            loss_rec = self.accelerator.gather(loss_rec.detach()).mean().item(),
+                            loss_t2i = self.accelerator.gather(loss_t2i.detach()).mean().item(),
+                            lr = self.scheduler.get_last_lr()[0],
+                            grad_norm = grad_norm.item() if hasattr(grad_norm, 'item') else grad_norm,
+                        )
+                        self.accelerator.log(logs, step=self.global_step)
+                        self.progress_bar.set_postfix(**logs)
+
+                        if self.global_step > 0 and self.global_step % self.config.train.save_every == 0:
+                            self.accelerator.wait_for_everyone()
+                            self.accelerator.save_state(os.path.join(self.output_dir, f"checkpoint-{self.global_step}"))
+
+                        if self.global_step >= self.config.train.num_iter:
+                            training_done = True
+                            break
+
+            self.epoch += 1
+            self.accelerator.print(f"epoch {self.epoch}: finished")
+            self.accelerator.log({"epoch": self.epoch}, step=self.global_step)
+
+        self.accelerator.end_training()
 
 def main(args):
     from omegaconf import OmegaConf
