@@ -4,79 +4,76 @@ from torch.utils.data import DataLoader
 import torch
 
 def get_blip3o_validation_dataloader(config, tokenizer):
-    import tarfile
-
     journeydb_path = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-JourneyDB"
     long_path = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Long-Caption"
     short_path = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/BLIP3o/BLIP3o-Pretrain-Short-Caption"
 
     journeydb_tars = [
-        os.path.join(journeydb_path, "JourneyDB_54.tar"),
-        os.path.join(journeydb_path, "JourneyDB_166.tar"),
+        os.path.join(journeydb_path, "JourneyDB_054.tar"),
         os.path.join(journeydb_path, "JourneyDB_323.tar"),
     ]
 
     long_tars = [
         os.path.join(long_path, "webdataset_shard_009.tar"),
+        os.path.join(long_path, "webdataset_shard_254.tar"),
         os.path.join(long_path, "webdataset_shard_1520.tar"),
+        os.path.join(long_path, "sa_000142.tar"),
         os.path.join(long_path, "sa_000623.tar"),
         os.path.join(long_path, "sa_000964.tar"),
         os.path.join(long_path, "sa_000998.tar"),
     ]
     short_tars = [
         os.path.join(short_path, "00214.tar"),
-        os.path.join(short_path, "00512.tar"),
         os.path.join(short_path, "00562.tar"),
-        os.path.join(short_path, "00008.tar"),
     ]
     
-    def count_images_in_tar(tar_path):
-        """统计tar文件中的图片数量（jpg/png）"""
-        if not os.path.exists(tar_path):
-            return 0
-        count = 0
-        try:
-            with tarfile.open(tar_path, 'r') as tar:
-                for member in tar.getmembers():
-                    name = member.name.lower()
-                    if name.endswith('.jpg') or name.endswith('.jpeg') or name.endswith('.png'):
-                        count += 1
-        except Exception as e:
-            print(f"Error reading {tar_path}: {e}")
-            return 0
-        return count
+    # def count_images_in_tar(tar_path):
+    #     """统计tar文件中的图片数量（jpg/png）"""
+    #     if not os.path.exists(tar_path):
+    #         return 0
+    #     count = 0
+    #     try:
+    #         with tarfile.open(tar_path, 'r') as tar:
+    #             for member in tar.getmembers():
+    #                 name = member.name.lower()
+    #                 if name.endswith('.jpg') or name.endswith('.jpeg') or name.endswith('.png'):
+    #                     count += 1
+    #     except Exception as e:
+    #         print(f"Error reading {tar_path}: {e}")
+    #         return 0
+    #     return count
     
-    print("=" * 60)
-    print("统计各个tar文件中的图片数量:")
-    print("=" * 60)
+    # print("=" * 60)
+    # print("统计各个tar文件中的图片数量:")
+    # print("=" * 60)
     
-    print("\nJourneyDB tars:")
-    journeydb_total = 0
-    for tar_path in journeydb_tars:
-        count = count_images_in_tar(tar_path)
-        journeydb_total += count
-        print(f"  {os.path.basename(tar_path)}: {count} 张图片")
-    print(f"  JourneyDB 总计: {journeydb_total} 张图片")
+    # print("\nJourneyDB tars:")
+    # journeydb_total = 0
+    # for tar_path in journeydb_tars:
+    #     count = count_images_in_tar(tar_path)
+    #     journeydb_total += count
+    #     print(f"  {os.path.basename(tar_path)}: {count} 张图片")
+    # print(f"  JourneyDB 总计: {journeydb_total} 张图片")
     
-    print("\nLong tars:")
-    long_total = 0
-    for tar_path in long_tars:
-        count = count_images_in_tar(tar_path)
-        long_total += count
-        print(f"  {os.path.basename(tar_path)}: {count} 张图片")
-    print(f"  Long 总计: {long_total} 张图片")
+    # print("\nLong tars:")
+    # long_total = 0
+    # for tar_path in long_tars:
+    #     count = count_images_in_tar(tar_path)
+    #     long_total += count
+    #     print(f"  {os.path.basename(tar_path)}: {count} 张图片")
+    # print(f"  Long 总计: {long_total} 张图片")
     
-    print("\nShort tars:")
-    short_total = 0
-    for tar_path in short_tars:
-        count = count_images_in_tar(tar_path)
-        short_total += count
-        print(f"  {os.path.basename(tar_path)}: {count} 张图片")
-    print(f"  Short 总计: {short_total} 张图片")
+    # print("\nShort tars:")
+    # short_total = 0
+    # for tar_path in short_tars:
+    #     count = count_images_in_tar(tar_path)
+    #     short_total += count
+    #     print(f"  {os.path.basename(tar_path)}: {count} 张图片")
+    # print(f"  Short 总计: {short_total} 张图片")
     
-    print("\n" + "=" * 60)
-    print(f"全部总计: {journeydb_total + long_total + short_total} 张图片")
-    print("=" * 60)
+    # print("\n" + "=" * 60)
+    # print(f"全部总计: {journeydb_total + long_total + short_total} 张图片")
+    # print("=" * 60)
 
     # 合并所有tar文件
     all_tar_files = journeydb_tars + long_tars + short_tars
@@ -156,7 +153,7 @@ def get_blip3o_validation_dataloader(config, tokenizer):
     # 创建validation dataloader（通常validation不需要shuffle，drop_last设为False）
     dataloader = DataLoader(
         validation_dataset,
-        batch_size  = config.batch_size,
+        batch_size  = config.val_batch_size,
         shuffle     = False,  # validation通常不打乱
         num_workers = config.num_workers,
         pin_memory  = True,
@@ -572,9 +569,10 @@ if __name__ == "__main__":
     from transformers import AutoTokenizer
     from omegaconf import OmegaConf
     config = OmegaConf.load("config/sft/echo4o_blip3o.yaml")
+    config.data.batch_size = 2
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
-    dataloader = get_blip3o_validation_dataloader(config, tokenizer)
+    dataloader = get_blip3o_validation_dataloader(config.data, tokenizer)
     for batch in dataloader:
         print(batch)
         break

@@ -1,0 +1,60 @@
+model:
+  internvl_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/ckpt/OpenGVLab/InternVL3_5-4B
+  embedding_dim: 256
+  llm_hidden_size: 2560
+  mixture_mode: mot # [moe, mot]
+
+  quantizer:
+    ckpt_path: /inspire/ssd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/ssd/jjc/experiment/vq_llava_distill/1203_multivq_mlp_4B_256_8x2048/quantizer-vq_llava_distill-85000
+    vq_type: multi_vq # [vq, lfq, multi_vq]
+    type: MLP # [MLP, ViT]
+    input_feature_dim: 4096
+    embedding_dim: 256
+    llm_hidden_size: 2560
+    num_embeddings: 2048
+    num_codebooks: 8
+
+  head:
+    num_codebooks: 8
+    num_layers: 3
+    hidden_size: 2560
+    num_embeddings: 2048
+    num_heads: 32
+    mlp_ratio: 4.0
+
+train:
+  root: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/experiment
+  resume_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/experiment/hdd_exp/1224_new_save/checkpoint-170000
+  global_step: 0
+
+  exp_name: &exp_name mcq_gen
+  proj_name: *exp_name
+  output_dir: 1227_sft_mix_data_with_val
+  logging_dir: logs
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  report_to: swanlab
+
+  lr: 5e-6
+  use_scheduler: false
+  warmup_steps: 500 # not used
+  min_lr: 5e-6 # not used
+  num_epochs: 10
+  num_iter: 100000 # not used
+  val_every: 100
+
+data:
+  BLIP3o_60k_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
+  echo4o_instruction_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Instruction-Following-Image/images
+  echo4o_instruction_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Instruction-Following-Image/Instruction-Following-Image.jsonl
+  # echo4o_fantacy_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/images
+  # echo4o_fantacy_jsonl: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/jjc/dataset/Yejy53/Echo-4o-Image/Surrel-Fantasy-Image/conflict.jsonl
+
+  img_size: 448
+  cfg_drop_rate: 0.1
+  num_img_token: 256
+  max_seq_length: 320
+  buffer_size: 10000
+  batch_size: 12
+  val_batch_size: 100
+  num_workers: 8

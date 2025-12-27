@@ -42,14 +42,18 @@ class MyTrainer(Trainer):
         self.tokenizer = tokenizer
 
     def _load_dataloader(self):
-        from util.dataloader import get_blip3o_60k_dataloader, get_blip3o_echo_4o_dataloader
+        from util.dataloader import get_blip3o_60k_dataloader, get_blip3o_echo_4o_dataloader, get_blip3o_validation_dataloader
         if "echo4o_instruction_path" in self.config.data:
             self.dataloader = get_blip3o_echo_4o_dataloader(self.config.data, self.tokenizer)
         else:
             self.dataloader = get_blip3o_60k_dataloader(self.config.data, self.tokenizer)
+        # 所有进程都加载 val_dataloader，用于多卡并行验证
+        self.val_dataloader = get_blip3o_validation_dataloader(self.config.data, self.tokenizer)
 
     def train(self):
         self.model, self.dataloader, self.optimizer, self.scheduler = self.accelerator.prepare(self.model, self.dataloader, self.optimizer, self.scheduler)
+        # 准备 val_dataloader 用于多卡并行验证
+        self.val_dataloader = self.accelerator.prepare(self.val_dataloader)
 
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -117,6 +121,71 @@ class MyTrainer(Trainer):
                         )
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
+
+                    if self.global_step % self.config.train.val_every == 0:
+                        # compute validation loss (多卡并行)
+                        self.model.eval()
+                        total_val_loss = torch.tensor(0.0, device=self.device)
+                        total_val_samples = torch.tensor(0, device=self.device)
+                        V = self.config.model.head.num_embeddings
+                        K = self.config.model.head.num_codebooks
+                        
+                        with torch.no_grad():
+                            for val_batch in self.val_dataloader:
+                                pixel_values = val_batch["pixel_values"].to(self.device, self.dtype, non_blocking=True)
+                                input_ids = val_batch["input_ids"].to(self.device, non_blocking=True)
+                                attention_mask = val_batch["attention_mask"].to(self.device, non_blocking=True)
+
+                                x_gen = (pixel_values - imagenet_mean) / imagenet_std
+
+                                vit_feature = self.model.get_vit_feature(x_gen)
+                                z_q, code = self.quantizer.get_zq_indices(vit_feature)
+
+                                B, L, _ = code.shape
+
+                                text_embedding_t2i = self.model.language_model.get_input_embeddings()(input_ids)
+                                visual_embedding_t2i = self.model.visual_projector(z_q)
+                                joint_embedding = torch.cat([text_embedding_t2i, visual_embedding_t2i], dim=1)
+                                val_attention_mask = torch.cat([attention_mask, torch.ones((B, self.config.data.num_img_token), dtype=torch.bool, device=self.device)], dim=1)
+
+                                L_txt = text_embedding_t2i.shape[1]
+                                L_visual = visual_embedding_t2i.shape[1]
+                                vision_token_mask = torch.cat([torch.zeros(B, L_txt-1), torch.ones(B, L_visual+1)], dim=1).to(self.device, dtype=self.dtype)
+
+                                visual_hidden_states = self.model.language_model(
+                                    inputs_embeds        = joint_embedding,
+                                    attention_mask       = val_attention_mask,
+                                    vision_token_mask    = vision_token_mask,
+                                    output_hidden_states = True,
+                                ).hidden_states[-1][:, -self.config.data.num_img_token-1:-1, :] # (B, L, D)
+
+                                prefix = rearrange(visual_hidden_states, "B L D -> (B L) 1 D")
+                                head_visual_embeddings = self.model.ar_head._code_to_embeddings(code) # (BxL, K, D)
+                                h = torch.cat((prefix, head_visual_embeddings), dim=1) # (BxL, K+1, D)
+
+                                logits = self.model.ar_head(h[:, :-1, :]) # (BxL, K, V)
+                                logits = rearrange(logits, "(B L) K V -> B L K V", B=B, L=L)
+                                val_loss = torch.nn.functional.cross_entropy(logits.view(-1, V), code.view(-1), reduction='sum')
+
+                                num_samples_in_batch = B * L * K
+                                total_val_loss += val_loss
+                                total_val_samples += num_samples_in_batch
+
+                        # 聚合所有进程的 loss 和样本数
+                        total_val_loss = self.accelerator.reduce(total_val_loss, reduction="sum")
+                        total_val_samples = self.accelerator.reduce(total_val_samples, reduction="sum")
+                        
+                        avg_val_loss = (total_val_loss / total_val_samples).item() if total_val_samples > 0 else 0.0
+                        
+                        if self.accelerator.is_main_process:
+                            val_logs = {"val_loss_CE": avg_val_loss}
+                            self.accelerator.log(val_logs, step=self.global_step)
+                            self.accelerator.print(f"Step {self.global_step}: Validation CE Loss = {avg_val_loss:.6f}")
+                        
+                        self.model.train()
+                        self.model.vision_model.eval()
+                        self.accelerator.wait_for_everyone()
+
 
             self.epoch += 1
             self.accelerator.print(f"epoch {self.epoch}: finished")
