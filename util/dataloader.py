@@ -13,21 +13,13 @@ def get_blip3o_validation_dataloader(config, tokenizer):
 
     journeydb_tars = [
         os.path.join(journeydb_path, "JourneyDB_054.tar"),
-        os.path.join(journeydb_path, "JourneyDB_323.tar"),
     ]
 
     long_tars = [
         os.path.join(long_path, "webdataset_shard_009.tar"),
-        os.path.join(long_path, "webdataset_shard_254.tar"),
-        os.path.join(long_path, "webdataset_shard_1520.tar"),
-        os.path.join(long_path, "sa_000142.tar"),
-        os.path.join(long_path, "sa_000623.tar"),
-        os.path.join(long_path, "sa_000964.tar"),
-        os.path.join(long_path, "sa_000998.tar"),
     ]
     short_tars = [
         os.path.join(short_path, "00214.tar"),
-        os.path.join(short_path, "00562.tar"),
     ]
     # 合并所有tar文件
     all_tar_files = journeydb_tars + long_tars + short_tars
@@ -37,7 +29,7 @@ def get_blip3o_validation_dataloader(config, tokenizer):
     from datasets import load_dataset
     
     # 创建缓存目录（使用第一个tar文件所在目录的父目录）
-    cache_dir = os.path.dirname(journeydb_path)
+    cache_dir = "/inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset"
     
     validation_dataset = load_dataset(
         "webdataset", 
@@ -327,9 +319,6 @@ def get_blip3o_60k_dataloader(config, tokenizer):
 
     data_files = glob.glob(os.path.join(config.wds_path, "*.tar"))
     BLIP3o_60k_dataset = load_dataset("webdataset", data_files=data_files, cache_dir=config.cache_dir, split="train", num_proc=32)
-    
-    print("Checking for corrupted images in BLIP3o_60k dataset...")
-    BLIP3o_60k_dataset = filter_corrupted_images(BLIP3o_60k_dataset, num_proc=32)
 
     preprocess_gen = pth_transforms.Compose([
         pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
@@ -418,16 +407,13 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
 
     BLIP3o_60k_data_files = glob.glob(os.path.join(config.BLIP3o_60k_path, "*.tar"))
     BLIP3o_60k_dataset = load_dataset("webdataset", data_files=BLIP3o_60k_data_files, cache_dir=config.BLIP3o_60k_path, split="train", num_proc=32)
-    BLIP3o_60k_dataset = filter_corrupted_images(BLIP3o_60k_dataset, num_proc=32)
 
     echo4o_instruction_files = glob.glob(os.path.join(config.echo4o_instruction_path, "*.tar.gz"))
     echo4o_instruction_dataset = load_dataset("webdataset", data_files=echo4o_instruction_files, cache_dir=config.echo4o_instruction_path, split="train", num_proc=32)
-    echo4o_instruction_dataset = filter_corrupted_images(echo4o_instruction_dataset, num_proc=32)
 
     if use_echo_fantacy:
         echo4o_fantacy_files = glob.glob(os.path.join(config.echo4o_fantacy_path, "*.tar.gz"))
         echo4o_fantacy_dataset = load_dataset("webdataset", data_files=echo4o_fantacy_files, cache_dir=config.echo4o_fantacy_path, split="train", num_proc=32)
-        echo4o_fantacy_dataset = filter_corrupted_images(echo4o_fantacy_dataset, num_proc=32)
         echo4o_fantacy_meta_map = load_metadata_map(config.echo4o_fantacy_jsonl)
         echo4o_fantacy_dataset = echo4o_fantacy_dataset.add_column("_source", ["fantacy"] * len(echo4o_fantacy_dataset))
 
