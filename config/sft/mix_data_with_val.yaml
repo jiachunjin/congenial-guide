@@ -39,9 +39,9 @@ train:
   use_scheduler: false
   warmup_steps: 500 # not used
   min_lr: 5e-6 # not used
-  num_epochs: 10
+  num_epochs: 20
   num_iter: 100000 # not used
-  val_every: 100
+  val_every: 500
 
 data:
   BLIP3o_60k_path: /inspire/hdd/project/advanced-machine-learning-and-deep-learning-applications/yangyi-253108120173/home_jjc/dataset/BLIP3o/BLIP3o-60k
@@ -56,5 +56,5 @@ data:
   max_seq_length: 320
   buffer_size: 10000
   batch_size: 12
-  val_batch_size: 100
+  val_batch_size: 64
   num_workers: 8

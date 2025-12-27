@@ -122,7 +122,7 @@ class MyTrainer(Trainer):
                         self.accelerator.log(logs, step=self.global_step)
                         self.progress_bar.set_postfix(**logs)
 
-                    if self.global_step % self.config.train.val_every == 0:
+                    if self.global_step == 1 or self.global_step % self.config.train.val_every == 0:
                         # compute validation loss (多卡并行)
                         self.model.eval()
                         total_val_loss = torch.tensor(0.0, device=self.device)

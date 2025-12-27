@@ -511,13 +511,114 @@ def get_blip3o_echo_4o_dataloader(config, tokenizer):
 
     return dataloader
 
+
+def get_jackyhate_dataloader(config, tokenizer):
+    import glob
+    import webdataset as wds
+    import torchvision.transforms as pth_transforms
+    
+    urls = []
+    for path in config.wds_path:
+        urls.extend(glob.glob(os.path.join(path, "*.tar")))
+
+    # 打乱 urls，但不使用固定 seed，让每个进程有不同的随机性
+    random.shuffle(urls)
+    print(f"Found tar files: {len(urls)}")
+
+    preprocess_gen = pth_transforms.Compose([
+        pth_transforms.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
+        pth_transforms.Resize(config.img_size, max_size=None),
+        pth_transforms.CenterCrop(config.img_size),
+        pth_transforms.ToTensor(),
+    ])
+
+    def preprocess_image(image):
+        width, height = image.size
+        max_size = max(width, height)
+        if max_size < config.img_size * 0.75:
+            return None
+        pixel_values = preprocess_gen(image)
+
+        return pixel_values
+    
+    def preprocess_text(json):
+        IMG_START_TOKEN = "<img>"
+
+        prompt = json["prompt"] + IMG_START_TOKEN
+
+        tokenizer_output = tokenizer(
+            prompt,
+            return_tensors = "pt",
+            padding        = "max_length",
+            padding_side   = "left",
+            truncation     = True,
+            max_length     = config.max_seq_length - config.num_img_token,
+        )
+        input_ids = tokenizer_output["input_ids"]
+        if random.random() < config.cfg_drop_rate:
+            input_ids[:, 1:-1] = tokenizer.pad_token_id
+        attention_mask = tokenizer_output["attention_mask"]
+
+        return input_ids, attention_mask
+
+    def collation_fn(batch):
+        pixel_values = []
+        input_ids_list = []
+        attention_mask_list = []
+
+        for sample in batch:
+            pixel_value, (input_ids, attention_mask) = sample
+            if pixel_value == None:
+                continue
+            else:
+                pixel_values.append(pixel_value)
+                input_ids_list.append(input_ids[0])
+                attention_mask_list.append(attention_mask[0])
+
+        pixel_values = torch.stack(pixel_values)
+        input_ids = torch.stack(input_ids_list)
+        attention_mask = torch.stack(attention_mask_list)
+
+        return {
+            "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        }
+
+    # 使用 ResampledShards: 每个进程独立随机采样 shard，不再静态分配
+    # 这样每个进程都能看到所有数据集的数据，且每次采样都不同
+    dataset = wds.DataPipeline(
+        wds.ResampledShards(urls, seed=random.randint(0, 1000000)),  # 每个rank用不同seed，无限采样
+        wds.split_by_worker,
+        wds.tarfile_to_samples(handler=wds.warn_and_continue),
+        wds.shuffle(bufsize=config.buffer_size, initial=config.buffer_size),
+        wds.decode("pil", handler=wds.ignore_and_continue),
+        wds.to_tuple("jpg", "json"),
+        wds.map_tuple(preprocess_image, preprocess_text)
+    )
+    dataloader = DataLoader(
+        dataset,
+        batch_size         = config.batch_size,
+        num_workers        = config.num_workers,
+        pin_memory         = True,
+        collate_fn         = collation_fn,
+        drop_last          = True,
+        prefetch_factor    = 4,              # 预取更多 batch
+        persistent_workers = True if config.num_workers > 0 else False,  # 保持 worker 进程
+    )
+
+    return dataloader
+
+
 if __name__ == "__main__":
     from transformers import AutoTokenizer
     from omegaconf import OmegaConf
-    config = OmegaConf.load("config/sft/mix_data_with_val.yaml")
-    config.data.batch_size = 100
+    config = OmegaConf.load("config/sft/T2I_with_recA.yaml")
     tokenizer = AutoTokenizer.from_pretrained(config.model.internvl_path, trust_remote_code=True, use_fast=False)
 
-    dataloader = get_blip3o_validation_dataloader(config.data, tokenizer)
+    dataloader = get_jackyhate_dataloader(config.data, tokenizer)
     for batch in dataloader:
-        print(batch)
+        print(batch["pixel_values"].shape)
+        print(batch["input_ids"].shape)
+        print(batch["attention_mask"].shape)
+        break
